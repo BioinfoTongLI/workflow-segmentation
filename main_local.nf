@@ -2,7 +2,7 @@
 
 nextflow.enable.dsl=2
 
-params.img_path = ""
+params.img_path = "/nfs/team283_imaging/"
 params.dapi_ch = 0
 params.cyto_ch = 1
 params.object_diameter = 70
@@ -10,7 +10,7 @@ params.flow_threshold = 0.0
 params.model_type = "cyto"
 params.magnification = 40
 params.expand = 70
-params.max_fork = 4
+params.max_fork = 2
 params.out_dir = ""
 
 
@@ -35,7 +35,7 @@ process extract_channels_from_input_image {
     path img
 
     output:
-    tuple val(stem), path("${stem}_*.tif")
+    tuple val(stem), path("${stem}_*DAPI.tif")
 
     script:
     stem = img.baseName
@@ -48,7 +48,8 @@ process extract_channels_from_input_image {
 process cellpose_cell_segmentation {
     cache "lenient"
     echo true
-    container "gitlab-registry.internal.sanger.ac.uk/tl10/img-cellpose:latest"
+    /*container "gitlab-registry.internal.sanger.ac.uk/tl10/img-cellpose:latest"*/
+    container "eu.gcr.io/imaging-gpu-eval/cellpose:latest"
     containerOptions "--gpus all"
     /*label "cellpose"*/
     storeDir params.out_dir
@@ -59,12 +60,11 @@ process cellpose_cell_segmentation {
     tuple val(stem), file(ch_img)
 
     output:
-    tuple val(stem), file("${stem}*seg.npy")
+    tuple val(stem), file("${stem}*cp_masks.tif")
 
     script:
     """
-    ls
-    python -m cellpose --dir ./ --use_gpu --diameter ${params.object_diameter} --flow_threshold ${params.flow_threshold} --chan 0 $params.cellpose_ch2 --pretrained_model ${params.model_type}
+    python -m cellpose --dir ./ --use_gpu --diameter ${params.object_diameter} --flow_threshold ${params.flow_threshold} --chan 0 $params.cellpose_ch2 --pretrained_model ${params.model_type} --save_tif --no_npy
     """
 }
 
@@ -80,10 +80,10 @@ process expand_labels {
     maxForks 1
 
     input:
-    tuple val(stem), file(label) from labels
+    tuple val(stem), file(label)
 
     output:
-    tuple val(stem), file("${stem}*_label_expanded.tif") into expanded_nuc_labels, labels_for_filtering
+    tuple val(stem), file("${stem}*_label_expanded.tif")
 
     script:
     """
@@ -102,11 +102,11 @@ process ilastik_cell_filtering {
     maxForks 1
 
     input:
-    tuple val(stem), file(raw_img), file(mask) from target_chs_for_filtering.join(expanded_nuc_labels)
+    tuple val(stem), file(raw_img), file(mask)
 
     output:
-    tuple val(stem), file("$stem*table.csv") into cell_roi_descriptions
-    tuple val(stem), file("$stem*Object Predictions.tif") into selective_masks, selective_masks_for_intensity_quant
+    tuple val(stem), file("$stem*table.csv")
+    tuple val(stem), file("$stem*Object Predictions.tif")
 
     script:
     """
@@ -133,7 +133,7 @@ process filter_labels {
     maxRetries 3
 
     input:
-    tuple val(stem), file(label), file(mask), file(roi) from labels_for_filtering.join(selective_masks).join(cell_roi_descriptions)
+    tuple val(stem), file(label), file(mask), file(roi)
 
     output:
     tuple val(stem), file("$stem*filtered_labels.tif")
@@ -148,4 +148,7 @@ process filter_labels {
 workflow {
     extract_channels_from_input_image(channel.fromPath(params.img_path))
     cellpose_cell_segmentation(extract_channels_from_input_image.out)
+    expand_labels(cellpose_cell_segmentation.out)
+    ilastik_cell_filtering((extract_channels_from_input_image.out.join(expand_labels.out)))
+    filter_labels(expand_labels.out.join(ilastik_cell_filtering.out[1]).join(ilastik_cell_filtering.out[0]))
 }
