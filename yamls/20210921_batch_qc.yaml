@@ -1,0 +1,24 @@
+img_path  :
+  - '/nfs/team283_imaging/0HarmonyStitched/LY_BRC/LY_BRC_LY10053__2021-09-13T16_40_26-Measurement 6b_max/LY_BRC_LY10053_PD50756a_Nucleus_RPLP0_Meas6b_A2_F1T1_max.ome.tif'
+  - '/nfs/team283_imaging/0HarmonyStitched/LY_BRC/LY_BRC_LY10053__2021-09-13T17_55_35-Measurement 7b_max/LY_BRC_LY10053_PD50756a_Nucleus_RPLP0_Meas7b_A2_F1T1_max.ome.tif'
+  - '/nfs/team283_imaging/0HarmonyStitched/LY_BRC/LY_BRC_LY10085__2021-09-10T15_41_19-Measurement 2b_max/LY_BRC_LY10085_PD50756a_Nucleus_RPLP0_Meas2b_A2_F1T1_max.ome.tif'
+  - '/nfs/team283_imaging/0HarmonyStitched/LY_BRC/LY_BRC_LY10087__2021-09-10T17_46_13-Measurement 6b_max/LY_BRC_LY10087_PD50756a_Nucleus_RPLP0_Meas6b_A2_F1T1_max.ome.tif'
+  - '/nfs/team283_imaging/0HarmonyStitched/LY_BRC/LY_BRC_LY10088__2021-09-10T18_29_40-Measurement 3b_max/LY_BRC_LY10088_PD50756a_Nucleus_RPLP0_Meas3b_A2_F1T1_max.ome.tif'
+  - '/nfs/team283_imaging/0HarmonyStitched/LY_BRC/LY_BRC_LY10054__2021-09-15T17_33_34-Measurement 8b_max/LY_BRC_LY10054_PD50756a_Nucleus_MALAT1_Meas8b_A2_F1T1_max.ome.tif'
+  - '/nfs/team283_imaging/0HarmonyStitched/LY_BRC/LY_BRC_LY10109__2021-09-15T15_20_22-Measurement 5b_max/LY_BRC_LY10109_PD50756a_Nucleus_MALAT1_Meas5b_A2_F1T1_max.ome.tif'
+  #- '/nfs/team283_imaging/0HarmonyStitched/LY_BRC/LY_BRC_LY10/LY_BRC_LY10052_PD50756a_Nucleus_RPLP0_Meas2b_A2_F1T1_max.ome.tif'
+  - '/nfs/team283_imaging/0HarmonyStitched/LY_BRC/LY_BRC_LY10080__2021-09-17T12_54_50-Measurement 2b_max/LY_BRC_LY10080_PD50756a_Nucleus_RPLP0_Meas2b_A2_F1T1_max.ome.tif'
+  - '/nfs/team283_imaging/0HarmonyStitched/LY_BRC/LY_BRC_LY10081__2021-09-17T13_35_04-Measurement 2b_max/LY_BRC_LY10081_PD50756a_Nucleus_RPLP0_Meas2b_A2_F1T1_max.ome.tif'
+  - '/nfs/team283_imaging/0HarmonyStitched/LY_BRC/LY_BRC_LY10082__2021-09-17T16_51_28-Measurement 5b_max/LY_BRC_LY10082_PD50756a_Nucleus_RPLP0_Meas5b_A2_F1T1_max.ome.tif'
+  - '/nfs/team283_imaging/0HarmonyStitched/LY_BRC/LY_BRC_LY10083__2021-09-17T17_25_03-Measurement 1b_max/LY_BRC_LY10083_PD50756a_Nucleus_RPLP0_Meas1b_A2_F1T1_max.ome.tif'
+
+
+
+dapi_ch   : 0
+cyto_ch   : ''
+out_dir   : "/nfs/team283_imaging/LY_BRC/20210920_cellpose-nuclei_x20_batchqc_32bit"
+object_diameter : 35
+flow_threshold  : 0
+expand  : 35
+max_fork : 1
+magnification   : 20

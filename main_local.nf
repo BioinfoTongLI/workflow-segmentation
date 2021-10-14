@@ -4,7 +4,7 @@ nextflow.enable.dsl=2
 
 params.img_path = "/nfs/team283_imaging/"
 params.dapi_ch = 0
-params.cyto_ch = 1
+params.cyto_ch = ""
 params.object_diameter = 70
 params.flow_threshold = 0.0
 params.model_type = "cyto"
@@ -23,7 +23,8 @@ if (params.cyto_ch != ''){
 
 process extract_channels_from_input_image {
     cache "lenient"
-    container "segmentation_helper:latest"
+    /*container "segmentation_helper:latest"*/
+    conda "./containers/conda_env.yaml"
     storeDir params.out_dir
 
     cpus { 4 * task.attempt }
@@ -35,12 +36,12 @@ process extract_channels_from_input_image {
     path img
 
     output:
-    tuple val(stem), path("${stem}_*DAPI.tif")
+    tuple val(stem), path("${stem}_DAPI.tif")
 
     script:
     stem = img.baseName
     """
-    helper extract_channels ${params.dapi_ch} ${params.cyto_ch} --img_in_path=${img} --stem=${stem}
+    python ${projectDir}/scripts/helper.py extract_channels ${params.dapi_ch} ${params.cyto_ch} --img_in_path "${img}" --stem "${stem}"
     """
 }
 
@@ -49,7 +50,8 @@ process cellpose_cell_segmentation {
     cache "lenient"
     echo true
     /*container "gitlab-registry.internal.sanger.ac.uk/tl10/img-cellpose:latest"*/
-    container "eu.gcr.io/imaging-gpu-eval/cellpose:latest"
+    /*container "eu.gcr.io/imaging-gpu-eval/cellpose:latest"*/
+    container "cellpose:32bit"
     containerOptions "--gpus all"
     /*label "cellpose"*/
     storeDir params.out_dir
@@ -60,7 +62,7 @@ process cellpose_cell_segmentation {
     tuple val(stem), file(ch_img)
 
     output:
-    tuple val(stem), file("${stem}*cp_masks.tif")
+    tuple val(stem), file("${stem}_DAPI_cp_masks.tif")
 
     script:
     """
@@ -83,7 +85,7 @@ process expand_labels {
     tuple val(stem), file(label)
 
     output:
-    tuple val(stem), file("${stem}*_label_expanded.tif")
+    tuple val(stem), file("${stem}_label_expanded.tif")
 
     script:
     """
