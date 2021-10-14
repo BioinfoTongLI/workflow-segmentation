@@ -50,8 +50,8 @@ process cellpose_cell_segmentation {
     cache "lenient"
     echo true
     /*container "gitlab-registry.internal.sanger.ac.uk/tl10/img-cellpose:latest"*/
-    /*container "eu.gcr.io/imaging-gpu-eval/cellpose:latest"*/
-    container "cellpose:32bit"
+    container "gitlab-registry.internal.sanger.ac.uk/tl10/workflow-segmentation:latest"
+    /*container "cellpose:32bit"*/
     containerOptions "--gpus all"
     /*label "cellpose"*/
     storeDir params.out_dir
