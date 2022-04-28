@@ -1,0 +1,21 @@
+BootStrap: docker
+From: nvidia/cuda:11.0.3-cudnn8-runtime-ubuntu20.04
+
+%post
+    apt-get -y update
+    apt-get -y install -y --no-install-recommends procps python3 python3-dev python3-pip python-is-python3 libgomp1
+    pip install numpy==1.20 scipy tifffile fire \
+     dask-image "dask[distributed]" imagecodecs \
+     cellpose==1.0.2 cucim scipy scikit-image cupy-cuda110 ome-zarr==0.4.1 trackpy shapely --no-cache-dir
+
+    mkdir /opt/.cellpose && \
+    chmod -R a+rw /opt/.cellpose && \
+    ln -s /opt/.cellpose $HOME/.cellpose &&\
+    python -c "from cellpose import models;models.Cellpose(gpu=True, model_type='cyto2')"
+
+%environment
+
+%runscript
+
+%labels
+    Author Tong LI
