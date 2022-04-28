@@ -158,7 +158,7 @@ process dapi_assisted_segmentation_improvement {
     tuple val(stem), path(cyto_seg), path(nuc_seg)
 
     output:
-    tuple val(stem), path("${stem}_improved_seg.tif")
+    tuple val(stem), path("${stem}_improved_seg.tif"), path("${stem}_improved_seg_complementary.tif")
 
     script:
     """

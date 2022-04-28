@@ -23,7 +23,7 @@ import pandas as pd
 
 
 def main(stem, cyto_seg, nuc_seg):
-    nuc = imread(nuc_seg).squeeze().compute().astype(np.uint32)
+    nuc = imread(nuc_seg).squeeze().compute()
     # print(cyto, nuc)
     # meas = regionprops(nuc)
     meas = regionprops(cp.asarray(nuc))
@@ -54,8 +54,13 @@ def main(stem, cyto_seg, nuc_seg):
     # markers, _ = ndi.label(mask)
     # labels = watershed(-distance, markers, mask=large_masks)
     labels = watershed(-distance, nuc_centroids_np, mask=cyto)
-    # large_astros = remove_small_objects(labels, 300)
+    nucs_to_remove = np.unique(nuc * (labels > 0))
+    not_in_label_nuclei = np.where(nuc in nucs_to_remove, 0, nuc)
+    not_in_label_nuclei_mask = not_in_label_nuclei > 0
+    max_seg_id = np.max(labels)
     tf.imwrite(f"{stem}_improved_seg.tif", labels)
+    not_in_label_nuclei = (not_in_label_nuclei + max_seg_id) * not_in_label_nuclei_mask
+    tf.imwrite(f"{stem}_improved_seg_complementary.tif", not_in_label_nuclei)
 
 
 
