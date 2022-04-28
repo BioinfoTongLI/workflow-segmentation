@@ -2,3 +2,4 @@
 *un~
 *.swp*
 work
+*__pycache__*

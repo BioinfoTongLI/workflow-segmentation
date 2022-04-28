@@ -46,7 +46,8 @@ class Helper(object):
             metadata={"axes": final_img_dim},
             # compression=args.compression
             # tile=(2**10, 2**10),
-            # bigtiff=True, planarconfig='separate',
+            # bigtiff=True,
+            # planarconfig='separate',
         )
 
 
