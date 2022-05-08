@@ -9,34 +9,22 @@
 """
 Expand label images
 """
-import argparse
 import numpy as np
 from skimage.segmentation import expand_labels
 import tifffile as tf
+import fire
 
 
-def main(args):
-    label = tf.imread(args.label).squeeze().astype(np.uint32)
-    # if args.mask:
-        # mask = tf.imread(args.mask)
-        # masked_label = label * (mask == 2)
-    # else:
-        # print("Mask doesn't exist, skipped")
-    masked_label = label
-
-    expanded = expand_labels(masked_label, distance=args.distance)
-    tf.imwrite("%s_label_expanded.tif" % args.prefix, expanded, dtype=np.uint32)
+def main(stem, label, distance, ilastik_mask=None):
+    label = tf.imread(label).squeeze()
+    if ilastik_mask:
+        mask = tf.imread(ilastik_mask) == 2
+        masked_label = label * mask
+    else:
+        masked_label = label
+    expanded = expand_labels(masked_label, distance=distance)
+    tf.imwrite(f"{stem}_label_expanded.tif", expanded, dtype=np.uint32)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument("-label", type=str, required=True)
-    # parser.add_argument("-mask", type=str, required=True)
-    parser.add_argument("-prefix", type=str, required=True)
-    parser.add_argument("-distance", type=int, required=True)
-    # parser.add_argument("-calibration", type=int, required=True)
-
-    args = parser.parse_args()
-
-    main(args)
+    fire.Fire(main)

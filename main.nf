@@ -12,13 +12,16 @@ params.ome_tiff = [
 /*"/nfs/team283_imaging/0HarmonyStitched/LY_BRC/LY_BRC_LY10085__2022-04-13T15_42_53-Measurement 2b_max/LY_BRC_LY10085_PD50756a_Nucleus_RPLP0_p_pan-CK_p_PTPRC_Meas2b_A03_F1T1_max.ome.tif"*/
 params.object_diameter = 42
 params.chs_for_cell_Seg = "[4,0]"
-params.out_dir = "/nfs/team283_imaging/OB_ADR/playground_Tong/20220428/"
+/*params.out_dir = "/nfs/team283_imaging/OB_ADR/playground_Tong/20220428/"*/
+params.out_dir = "/nfs/team283_imaging/OB_ADR/playground_Tong/20220503/"
 params.tilesize = 13000
 
 params.container = "/lustre/scratch117/cellgen/team283/tl10/sifs/workflow_segmentation.sif"
 params.cyto_pixel_classifier = "/nfs/team283_imaging/OB_ADR/playground_Tong/classifiers/cyto_detection.ilp"
 params.tissue_pixel_classifier = "/nfs/team283_imaging/OB_ADR/playground_Tong/classifiers/tissue_finder.ilp"
-params.max_fork = 4
+params.max_fork = 3
+/*params.expand_in_pixel = 10*/
+params.expand_in_pixel = 300
 
 
 process slice {
@@ -149,8 +152,8 @@ process dapi_assisted_segmentation_improvement {
     container params.container
     containerOptions "--nv"
     /*conda projectDir + "/conda.yaml"*/
-    publishDir params.out_dir, mode:"copy"
-    /*storeDir params.out_dir*/
+    /*publishDir params.out_dir, mode:"copy"*/
+    storeDir params.out_dir
 
     maxForks 2
 
@@ -158,11 +161,37 @@ process dapi_assisted_segmentation_improvement {
     tuple val(stem), path(cyto_seg), path(nuc_seg)
 
     output:
-    tuple val(stem), path("${stem}_improved_seg.tif"), path("${stem}_improved_seg_complementary.tif")
+    tuple val(stem), path("${stem}_improved_seg.tif")
 
     script:
     """
     nuclei_assisted_seg.py --stem $stem --cyto_seg $cyto_seg/*Simple\\ Segmentation.tif --nuc_seg ${nuc_seg}
+    """
+}
+
+
+process Get_complementary_nuc_labels {
+    echo true
+    cache "lenient"
+
+    container params.container
+    containerOptions "--nv"
+    /*conda projectDir + "/conda.yaml"*/
+    /*publishDir params.out_dir, mode:"copy"*/
+    storeDir params.out_dir
+
+    maxForks 1
+
+    input:
+    tuple val(stem), path(cyto_seg), path(nuc_seg)
+
+    output:
+    tuple val(stem), path("${stem}_improved_seg_complementary.tif")
+    tuple val(stem), path("${stem}_improved_seg_complementary_non_cell.tif")
+
+    script:
+    """
+    exclude_labels.py --stem $stem --label $cyto_seg --nuc ${nuc_seg}
     """
 }
 
@@ -260,11 +289,36 @@ process find_tissue_border {
 }
 
 
+process expand_label_image {
+    echo true
+    cache "lenient"
+
+    container params.container
+    containerOptions "--nv"
+    /*conda projectDir + "/conda.yaml"*/
+    /*publishDir params.out_dir, mode:"copy"*/
+    storeDir params.out_dir
+
+    input:
+    tuple val(stem), path(nuc_label)
+    val(distance)
+
+    output:
+    tuple val(stem), path("${stem}_label_expanded.tif")
+
+    script:
+    """
+    expand_labels.py --stem $stem --label ${nuc_label} --distance ${distance}
+    """
+}
+
+
 workflow {
     extract_tif(channel.fromPath(params.ome_tiff))
     ilastik_pixel_classification(extract_tif.out, params.cyto_pixel_classifier, "cyto")
     nuc_seg_only(channel.fromPath(params.ome_tiff))
     dapi_assisted_segmentation_improvement(ilastik_pixel_classification.out.join(nuc_seg_only.out))
+    Get_complementary_nuc_labels(dapi_assisted_segmentation_improvement.out.join(nuc_seg_only.out))
 }
 
 workflow extract_tif {
@@ -282,7 +336,8 @@ workflow nuc_seg_only {
         slice(img, params.tilesize)
         cellpose_cell_segmentation(slice.out.tiles)
         stitch(cellpose_cell_segmentation.out.labels.join(slice.out.info))
-    emit: stitch.out
+        expand_label_image(stitch.out, params.expand_in_pixel)
+    emit: expand_label_image.out
 }
 
 workflow run_nuc_seg {
