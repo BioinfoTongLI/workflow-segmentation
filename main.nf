@@ -3,31 +3,25 @@
 
 nextflow.enable.dsl=2
 
-params.ome_tiff = [
-    "/nfs/assembled_images/datasets/OB_ADR/OB_ADR/OB_ADR_01MB_DAJN76.3b_Nucleus_Adra1a_Adra1b_Adra2a_Slc1a3_Meas2_A02_F1T1_max.ome.tif",
-    "/nfs/assembled_images/datasets/OB_ADR/OB_ADR/OB_ADR_01MD_MLK632.1b_Nucleus_Adra1a_Adra1b_Adra2a_Slc1a3_Meas3_A04_F1T1_max.ome.tif",
-    "/nfs/assembled_images/datasets/OB_ADR/OB_ADR/OB_ADR_01MD_MLK632.1b_Nucleus_Adra1a_Adra1b_Adra2a_Slc1a3_Meas4_A04_F1T1_max.ome.tif",
-    "/nfs/assembled_images/datasets/OB_ADR/OB_ADR/OB_ADR_01MC_PMGG13.1a_Nucleus_Adra1a_Adra1b_Adra2a_Slc1a3_Meas2_A03_F1T1_max.ome.tif",
-    ]
-/*"/nfs/team283_imaging/0HarmonyStitched/LY_BRC/LY_BRC_LY10085__2022-04-13T15_42_53-Measurement 2b_max/LY_BRC_LY10085_PD50756a_Nucleus_RPLP0_p_pan-CK_p_PTPRC_Meas2b_A03_F1T1_max.ome.tif"*/
-params.object_diameter = 42
+params.ome_tiff = ["image1", "image2"]
+params.object_diameter = [70]
 params.chs_for_cell_Seg = "[4,0]"
-/*params.out_dir = "/nfs/team283_imaging/OB_ADR/playground_Tong/20220428/"*/
 params.out_dir = "/nfs/team283_imaging/OB_ADR/playground_Tong/20220503/"
 params.tilesize = 13000
 
-params.container = "/lustre/scratch117/cellgen/team283/tl10/sifs/workflow_segmentation.sif"
+params.container = "workflow_segmentation:latest"
+params.contOptions = "--gpus all"
 params.cyto_pixel_classifier = "/nfs/team283_imaging/OB_ADR/playground_Tong/classifiers/cyto_detection.ilp"
 params.tissue_pixel_classifier = "/nfs/team283_imaging/OB_ADR/playground_Tong/classifiers/tissue_finder.ilp"
 params.max_fork = 3
-/*params.expand_in_pixel = 10*/
-params.expand_in_pixel = 300
+params.expand_in_pixel = [10]
 
 
 process slice {
 
     cache "lenient"
-    conda projectDir + "/slice_stitch_conda.yaml"
+    container params.container
+    containerOptions params.contOptions
     /*publishDir params.out_dir, mode:"copy"*/
     storeDir params.out_dir
 
@@ -37,7 +31,7 @@ process slice {
 
     output:
     tuple val(stem), path("${stem}_raw_splits"), emit: tiles
-    tuple val(stem), path("${stem}_raw_splits/slicer_info.json"), emit: info
+    path("${stem}_raw_splits/slicer_info.json"), emit: info
 
     script:
     stem = tif.baseName
@@ -52,7 +46,7 @@ process cellpose_cell_segmentation {
 
     cache "lenient"
     container params.container
-    containerOptions "--nv"
+    containerOptions params.contOptions
     /*publishDir params.out_dir, mode:"copy"*/
     storeDir params.out_dir
 
@@ -66,15 +60,16 @@ process cellpose_cell_segmentation {
 
     input:
     tuple val(stem), path(tiles)
+    each cell_size
 
     output:
-    tuple val(stem), path("${stem}_label_splits"), emit: labels
+    tuple val(stem), path("${stem}_label_splits_cell_size_${cell_size}"), val(cell_size), emit: labels
 
     script:
     """
-    python -m cellpose --dir ./${tiles} --use_gpu --diameter ${params.object_diameter} --flow_threshold 0 --chan 0 --pretrained_model cyto2 --save_tif --no_npy
-    mkdir ${stem}_label_splits
-    mv ${tiles}/*cp_masks.tif ${stem}_label_splits
+    python -m cellpose --dir ./${tiles} --use_gpu --diameter ${cell_size} --flow_threshold 0 --chan 0 --pretrained_model cyto2 --save_tif --no_npy
+    mkdir ${stem}_label_splits_cell_size_${cell_size}
+    mv ${tiles}/*cp_masks.tif ${stem}_label_splits_cell_size_${cell_size}
     """
 }
 
@@ -82,21 +77,22 @@ process cellpose_cell_segmentation {
 process stitch {
 
     cache "lenient"
-    conda projectDir + "/slice_stitch_conda.yaml"
+    container params.container
+    containerOptions params.contOptions
     /*publishDir params.out_dir, mode:"copy"*/
     storeDir params.out_dir
 
     input:
-    tuple val(stem), path(tiles), path(slicer_json)
+    tuple val(stem), path(tiles), val(cell_size), path(slicer_json)
 
     output:
-    tuple val(stem), path("${stem}_seg.tif")
+    tuple val(stem), path("${stem}_seg_${cell_size}.tif"), val(cell_size)
 
     script:
     """
     mv slicer_info.json  ${tiles}
     stitcher_runner.py -i ./${tiles} -o ./ --no_cell
-    mv z001_mask.ome.tiff ${stem}_seg.tif
+    mv z001_mask.ome.tiff ${stem}_seg_${cell_size}.tif
     """
 }
 
@@ -126,7 +122,7 @@ process export_chs_from_zarr {
     cache "lenient"
 
     container params.container
-    containerOptions "--nv"
+    containerOptions params.contOptions
     /*conda projectDir + "/conda.yaml"*/
     /*publishDir params.out_dir, mode:"copy"*/
     storeDir params.out_dir
@@ -150,7 +146,7 @@ process dapi_assisted_segmentation_improvement {
     cache "lenient"
 
     container params.container
-    containerOptions "--nv"
+    containerOptions params.contOptions
     /*conda projectDir + "/conda.yaml"*/
     /*publishDir params.out_dir, mode:"copy"*/
     storeDir params.out_dir
@@ -175,7 +171,7 @@ process Get_complementary_nuc_labels {
     cache "lenient"
 
     container params.container
-    containerOptions "--nv"
+    containerOptions params.contOptions
     /*conda projectDir + "/conda.yaml"*/
     /*publishDir params.out_dir, mode:"copy"*/
     storeDir params.out_dir
@@ -269,7 +265,7 @@ process find_tissue_border {
     cache "lenient"
 
     container params.container
-    containerOptions "--nv"
+    containerOptions params.contOptions
     /*conda projectDir + "/conda.yaml"*/
     publishDir params.out_dir, mode:"copy"
     /*storeDir params.out_dir*/
@@ -294,21 +290,22 @@ process expand_label_image {
     cache "lenient"
 
     container params.container
-    containerOptions "--nv"
+    containerOptions params.contOptions
     /*conda projectDir + "/conda.yaml"*/
     /*publishDir params.out_dir, mode:"copy"*/
     storeDir params.out_dir
 
     input:
-    tuple val(stem), path(nuc_label)
-    val(distance)
+    tuple val(stem), path(nuc_label), val(cell_size), val(distance)
+
 
     output:
-    tuple val(stem), path("${stem}_label_expanded.tif")
+    tuple val(stem), path("${stem}_${cell_size}_label_expanded_by_${distance}.tif")
 
     script:
     """
     expand_labels.py --stem $stem --label ${nuc_label} --distance ${distance}
+    mv "${stem}_label_expanded.tif" "${stem}_${cell_size}_label_expanded_by_${distance}.tif"
     """
 }
 
@@ -334,9 +331,9 @@ workflow nuc_seg_only {
     take: img
     main:
         slice(img, params.tilesize)
-        cellpose_cell_segmentation(slice.out.tiles)
-        stitch(cellpose_cell_segmentation.out.labels.join(slice.out.info))
-        expand_label_image(stitch.out, params.expand_in_pixel)
+        cellpose_cell_segmentation(slice.out.tiles, params.object_diameter)
+        stitch(cellpose_cell_segmentation.out.labels.combine(slice.out.info))
+        expand_label_image(stitch.out.combine(params.expand_in_pixel))
     emit: expand_label_image.out
 }
 
