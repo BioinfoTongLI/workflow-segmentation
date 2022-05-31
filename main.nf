@@ -9,7 +9,7 @@ params.chs_for_cell_Seg = "[4,0]"
 params.out_dir = "/nfs/team283_imaging/OB_ADR/playground_Tong/20220503/"
 params.tilesize = 13000
 
-params.container = "workflow_segmentation:latest"
+params.container = "gitlab-registry.internal.sanger.ac.uk/tl10/workflow-segmentation:latest"
 params.contOptions = "--gpus all"
 params.cyto_pixel_classifier = "/nfs/team283_imaging/OB_ADR/playground_Tong/classifiers/cyto_detection.ilp"
 params.tissue_pixel_classifier = "/nfs/team283_imaging/OB_ADR/playground_Tong/classifiers/tissue_finder.ilp"
@@ -24,6 +24,8 @@ process slice {
     containerOptions params.contOptions
     /*publishDir params.out_dir, mode:"copy"*/
     storeDir params.out_dir
+
+    queue "imaging"
 
     input:
     path(tif)
