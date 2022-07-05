@@ -156,7 +156,7 @@ class Helper(object):
 
 
     def to_tiff(self, stem, target_ch_indexes):
-        target_chs = self.raw_data[:, target_ch_indexes, :].squeeze()
+        target_chs = self.raw_data.squeeze()[target_ch_indexes]
         print(target_chs)
 
         tf.imwrite(f"{stem}_target_chs.tif", target_chs, imagej=True)
@@ -180,7 +180,7 @@ class Helper(object):
             minmass=50,
             engine="numba",
         )
-        print(df.y.max(), df.x.max())
+        # print(df.y.max(), df.x.max())
         df["x_int"] = df.x.astype(np.uint32)
         df["y_int"] = df.y.astype(np.uint32)
         df.to_csv(f"{stem}_detected_peaks.tsv", sep="\t")
@@ -195,12 +195,4 @@ class Helper(object):
 
 
 if __name__ == "__main__":
-    # from dask.distributed import Client, LocalCluster
-    # client = Client(
-        # # n_workers=10,
-        # # processes=False,
-        # # memory_limit="20GB",
-    # )
-    # print(client)
     fire.Fire(Helper)
-    # client.close()

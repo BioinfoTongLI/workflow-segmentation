@@ -8,6 +8,7 @@ params.object_diameter = [70]
 params.chs_for_cell_Seg = "[4,0]"
 params.out_dir = "/nfs/team283_imaging/OB_ADR/playground_Tong/20220503/"
 params.tilesize = 13000
+params.target_cellpose_ch_ind = 1
 
 params.container = "gitlab-registry.internal.sanger.ac.uk/tl10/workflow-segmentation:latest"
 params.contOptions = "--gpus all"
@@ -23,7 +24,7 @@ process slice {
     container params.container
     containerOptions params.contOptions
     /*publishDir params.out_dir, mode:"copy"*/
-    storeDir params.out_dir
+    storeDir params.out_dir + "/large_slices"
 
     queue "imaging"
 
@@ -43,14 +44,14 @@ process slice {
 }
 
 
-process cellpose_cell_segmentation {
+process cellpose_cell_segmentation_batch {
     echo true
 
     cache "lenient"
     container params.container
     containerOptions params.contOptions
     /*publishDir params.out_dir, mode:"copy"*/
-    storeDir params.out_dir
+    storeDir params.out_dir + "/large_segs"
 
     queue "gpu-normal"
     /*queue "gpu-basement"*/
@@ -76,13 +77,46 @@ process cellpose_cell_segmentation {
 }
 
 
+process cellpose_cell_segmentation {
+    echo true
+
+    cache "lenient"
+    container params.container
+    containerOptions params.contOptions
+    /*publishDir params.out_dir, mode:"copy"*/
+    storeDir params.out_dir + "/cellpose_seg"
+
+    queue "gpu-normal"
+    /*queue "gpu-basement"*/
+    clusterOptions = "-gpu 'num=1:gmem=2000'"
+    cpus 4
+    memory 64.GB
+
+    maxForks params.max_fork
+
+    input:
+    path(img)
+    each cell_size
+    val target_ch_ind
+
+    output:
+    tuple val(stem), path("${stem}_cp_masks.tif"), val(cell_size), emit: labels
+
+    script:
+    stem = img.baseName
+    """
+    python -m cellpose --dir ./ --use_gpu --diameter ${cell_size} --flow_threshold 0 --chan ${target_ch_ind} --pretrained_model cyto2 --save_tif --no_npy
+    """
+}
+
+
 process stitch {
 
     cache "lenient"
     container params.container
     containerOptions params.contOptions
     /*publishDir params.out_dir, mode:"copy"*/
-    storeDir params.out_dir
+    storeDir params.out_dir + "/large_stiched_segs"
 
     input:
     tuple val(stem), path(tiles), val(cell_size), path(slicer_json)
@@ -103,7 +137,7 @@ process bf2raw {
 
     conda "-c ome bioformats2raw"
     /*publishDir params.out_dir, mode: "copy"//, pattern: "*${params.nuc_ch}*"*/
-    storeDir params.out_dir
+    storeDir params.out_dir + "/raw_zarrs"
 
     input:
     path(img)
@@ -114,7 +148,7 @@ process bf2raw {
     script:
     stem = img.baseName
     """
-    bioformats2raw ${img} ${stem}.zarr --resolutions 8  --no-hcs
+    bioformats2raw ${img} ${stem}.zarr --no-hcs
     """
 }
 
@@ -127,7 +161,7 @@ process export_chs_from_zarr {
     containerOptions params.contOptions
     /*conda projectDir + "/conda.yaml"*/
     /*publishDir params.out_dir, mode:"copy"*/
-    storeDir params.out_dir
+    storeDir params.out_dir + "/extracted_raw_tifs"
 
     input:
     tuple val(stem), path(zarr_in)
@@ -151,7 +185,7 @@ process dapi_assisted_segmentation_improvement {
     containerOptions params.contOptions
     /*conda projectDir + "/conda.yaml"*/
     /*publishDir params.out_dir, mode:"copy"*/
-    storeDir params.out_dir
+    storeDir params.out_dir + "/nuclei_guided_segs"
 
     maxForks 2
 
@@ -176,7 +210,7 @@ process Get_complementary_nuc_labels {
     containerOptions params.contOptions
     /*conda projectDir + "/conda.yaml"*/
     /*publishDir params.out_dir, mode:"copy"*/
-    storeDir params.out_dir
+    storeDir params.out_dir + "/nuc_seg_complementary"
 
     maxForks 1
 
@@ -196,8 +230,9 @@ process Get_complementary_nuc_labels {
 
 process ilastik_cell_filtering {
     echo true
-    container "eu.gcr.io/imaging-gpu-eval/ilastik:latest"
-    publishDir params.out_dir, mode:"copy"
+    /*container "eu.gcr.io/imaging-gpu-eval/ilastik:latest"*/
+    container "gitlab-registry.internal.sanger.ac.uk/tl10/img-ilastik:latest"
+    publishDir params.out_dir + "/filtered_obj_classification", mode:"copy"
 
     machineType { ['n2-highmem-8','n2-highmem-16','n2-highmem-32','n2-highmem-64'][task.attempt-1] }
     errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
@@ -214,9 +249,9 @@ process ilastik_cell_filtering {
     script:
     """
     #LAZYFLOW_THREADS=10 LAZYFLOW_TOTAL_RAM_MB=60000
-    bash /ilastik-1.3.3-Linux/run_ilastik.sh --headless \
+    bash /opt/ilastik/run_ilastik.sh --headless \
         --project=/model/project.ilp \
-        --readonly \
+        --readonly 1 \
         --table_filename="./${stem}_object_features.csv" \
         --export_source="Blockwise Object Predictions" \
         --output_format="tif" \
@@ -228,9 +263,10 @@ process ilastik_cell_filtering {
 
 process ilastik_pixel_classification {
     echo true
-    container "eu.gcr.io/imaging-gpu-eval/ilastik:latest"
+    /*container "eu.gcr.io/imaging-gpu-eval/ilastik:latest"*/
+    container "gitlab-registry.internal.sanger.ac.uk/tl10/img-ilastik:latest"
     /*publishDir params.out_dir, mode:"copy"*/
-    storeDir params.out_dir
+    storeDir params.out_dir + "/pixel_prediction"
 
     machineType { ['n2-highmem-8','n2-highmem-16','n2-highmem-32','n2-highmem-64'][task.attempt-1] }
     errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
@@ -249,9 +285,9 @@ process ilastik_pixel_classification {
     script:
     """
     #LAZYFLOW_THREADS=10 LAZYFLOW_TOTAL_RAM_MB=60000
-    bash /ilastik-1.3.3-Linux/run_ilastik.sh --headless \
+    bash /opt/ilastik/run_ilastik.sh --headless \
         --project=${classifier} \
-        --readonly \
+        --readonly 1 \
         --export_source="simple segmentation" \
         --output_format="tif" \
         --raw_data=${raw_img}
@@ -269,7 +305,7 @@ process find_tissue_border {
     container params.container
     containerOptions params.contOptions
     /*conda projectDir + "/conda.yaml"*/
-    publishDir params.out_dir, mode:"copy"
+    publishDir params.out_dir + "/tissue_seg", mode:"copy"
     /*storeDir params.out_dir*/
 
     maxForks 2
@@ -295,7 +331,7 @@ process expand_label_image {
     containerOptions params.contOptions
     /*conda projectDir + "/conda.yaml"*/
     /*publishDir params.out_dir, mode:"copy"*/
-    storeDir params.out_dir
+    storeDir params.out_dir + "/expanded_labels"
 
     input:
     tuple val(stem), path(nuc_label), val(cell_size), val(distance)
@@ -312,12 +348,20 @@ process expand_label_image {
 }
 
 
+workflow large {
+    extract_tif(channel.fromPath(params.ome_tiff))
+    ilastik_pixel_classification(extract_tif.out, params.cyto_pixel_classifier, "cyto")
+    nuc_seg_large(channel.fromPath(params.ome_tiff))
+    dapi_assisted_segmentation_improvement(ilastik_pixel_classification.out.join(nuc_seg_large.out))
+    Get_complementary_nuc_labels(dapi_assisted_segmentation_improvement.out.join(nuc_seg_large.out))
+}
+
 workflow {
     extract_tif(channel.fromPath(params.ome_tiff))
     ilastik_pixel_classification(extract_tif.out, params.cyto_pixel_classifier, "cyto")
-    nuc_seg_only(channel.fromPath(params.ome_tiff))
-    dapi_assisted_segmentation_improvement(ilastik_pixel_classification.out.join(nuc_seg_only.out))
-    Get_complementary_nuc_labels(dapi_assisted_segmentation_improvement.out.join(nuc_seg_only.out))
+    _canonical_cellpose(channel.fromPath(params.ome_tiff))
+    dapi_assisted_segmentation_improvement(ilastik_pixel_classification.out.join(_canonical_cellpose.out))
+    Get_complementary_nuc_labels(dapi_assisted_segmentation_improvement.out.join(_canonical_cellpose.out))
 }
 
 workflow extract_tif {
@@ -328,19 +372,27 @@ workflow extract_tif {
     emit: export_chs_from_zarr.out
 }
 
+workflow _canonical_cellpose {
+    take: img
 
-workflow nuc_seg_only {
+    main:
+        cellpose_cell_segmentation(img, params.object_diameter, params.target_cellpose_ch_ind)
+    emit: cellpose_cell_segmentation.out
+}
+
+
+workflow nuc_seg_large {
     take: img
     main:
         slice(img, params.tilesize)
-        cellpose_cell_segmentation(slice.out.tiles, params.object_diameter)
-        stitch(cellpose_cell_segmentation.out.labels.combine(slice.out.info))
+        cellpose_cell_segmentation_batch(slice.out.tiles, params.object_diameter)
+        stitch(cellpose_cell_segmentation_batch.out.labels.combine(slice.out.info))
         expand_label_image(stitch.out.combine(params.expand_in_pixel))
     emit: expand_label_image.out
 }
 
 workflow run_nuc_seg {
-    nuc_seg_only(channel.fromPath(params.ome_tiff))
+    nuc_seg_large(channel.fromPath(params.ome_tiff))
 }
 
 workflow run_tissue_seg {
