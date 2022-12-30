@@ -3,28 +3,42 @@
 
 nextflow.enable.dsl=2
 
-params.ome_tiff = ["image1", "image2"]
+params.csv = "/nfs/team283_imaging/playground_Tong/Lea/20221009_fetal_analysis/template.csv"
 params.object_diameter = [70]
-params.chs_for_cell_Seg = "[4,0]"
-params.out_dir = "/nfs/team283_imaging/OB_ADR/playground_Tong/20220503/"
+params.target_ch_indexes = "[1,2,3,4]" //"[4,0]"
+/*params.out_dir = "/nfs/team283_imaging/playground_Tong/Lea/20220810_analysis/"*/
+params.out_dir = "/nfs/team283_imaging/playground_Tong/Lea/20221009_fetal_analysis/"
 params.tilesize = 13000
 
-params.container = "gitlab-registry.internal.sanger.ac.uk/tl10/workflow-segmentation:latest"
-params.contOptions = "--gpus all"
-params.cyto_pixel_classifier = "/nfs/team283_imaging/OB_ADR/playground_Tong/classifiers/cyto_detection.ilp"
+/*params.cyto_pixel_classifier = "/nfs/team283_imaging/OB_ADR/playground_Tong/classifiers/cyto_detection.ilp"*/
+params.cyto_pixel_classifier = "/nfs/team283_imaging/playground_Tong/Lea/20220810_analysis/00IQ_20220312.ilp"
+
 params.tissue_pixel_classifier = "/nfs/team283_imaging/OB_ADR/playground_Tong/classifiers/tissue_finder.ilp"
-params.max_fork = 3
 params.expand_in_pixel = [10]
+
+params.docker_container = "gitlab-registry.internal.sanger.ac.uk/tl10/workflow-segmentation:latest"
+params.sif_container = "/lustre/scratch117/cellgen/team283/imaging_sifs/large_cellseg.sif"
+params.max_fork = 3
+
+include { BIOINFOTONGLI_BIOFORMATS2RAW as bf2raw } from '/lustre/scratch117/cellgen/team283/tl10/modules/modules/bioinfotongli/bioformats2raw/main.nf' addParams(
+    enable_conda:false,
+    publish:false,
+    store:true,
+    out_dir:params.out_dir
+)
 
 
 process slice {
 
-    cache "lenient"
-    container params.container
-    containerOptions params.contOptions
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        params.sif_container:
+        params.docker_container}"
+    containerOptions "${workflow.containerEngine == 'singularity' ? '--nv':'--gpus all'}"
     /*publishDir params.out_dir, mode:"copy"*/
-    storeDir params.out_dir
+    storeDir params.out_dir + "/slices"
 
+    cpus 1
+    memory 130.GB
     queue "imaging"
 
     input:
@@ -33,7 +47,7 @@ process slice {
 
     output:
     tuple val(stem), path("${stem}_raw_splits"), emit: tiles
-    path("${stem}_raw_splits/slicer_info.json"), emit: info
+    tuple val(stem), path("${stem}_raw_splits/slicer_info.json"), emit: info
 
     script:
     stem = tif.baseName
@@ -44,18 +58,19 @@ process slice {
 
 
 process cellpose_cell_segmentation {
-    echo true
+    debug true
 
-    cache "lenient"
-    container params.container
-    containerOptions params.contOptions
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        params.sif_container:
+        params.docker_container}"
+    containerOptions "${workflow.containerEngine == 'singularity' ? '--nv':'--gpus all'}"
     /*publishDir params.out_dir, mode:"copy"*/
-    storeDir params.out_dir
+    storeDir params.out_dir + "/sparse_segs"
 
     queue "gpu-normal"
     /*queue "gpu-basement"*/
-    clusterOptions = "-gpu 'num=1:gmem=2000'"
-    cpus 4
+    clusterOptions = {" -gpu \"mode=shared:j_exclusive=no:gmem=12000:num=1\""}
+    cpus 10
     memory 64.GB
 
     maxForks params.max_fork
@@ -70,86 +85,79 @@ process cellpose_cell_segmentation {
     script:
     """
     python -m cellpose --dir ./${tiles} --use_gpu --diameter ${cell_size} --flow_threshold 0 --chan 0 --pretrained_model cyto2 --save_tif --no_npy
-    mkdir ${stem}_label_splits_cell_size_${cell_size}
-    mv ${tiles}/*cp_masks.tif ${stem}_label_splits_cell_size_${cell_size}
+    mkdir "${stem}_label_splits_cell_size_${cell_size}"
+    mv ${tiles}/*cp_masks.tif "${stem}_label_splits_cell_size_${cell_size}"
     """
 }
 
 
 process stitch {
+    debug true
 
-    cache "lenient"
-    container params.container
-    containerOptions params.contOptions
-    /*publishDir params.out_dir, mode:"copy"*/
-    storeDir params.out_dir
+    cpus 1
+    /*label 'huge_mem'*/
+    memory { 330.GB * task.attempt }
+    /*time { 1.hour * task.attempt }*/
 
-    input:
-    tuple val(stem), path(tiles), val(cell_size), path(slicer_json)
+    errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
+    maxRetries 3
 
-    output:
-    tuple val(stem), path("${stem}_seg_${cell_size}.tif"), val(cell_size)
-
-    script:
-    """
-    mv slicer_info.json  ${tiles}
-    stitcher_runner.py -i ./${tiles} -o ./ --no_cell
-    mv z001_mask.ome.tiff ${stem}_seg_${cell_size}.tif
-    """
-}
-
-
-process bf2raw {
-
-    conda "-c ome bioformats2raw"
-    /*publishDir params.out_dir, mode: "copy"//, pattern: "*${params.nuc_ch}*"*/
-    storeDir params.out_dir
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        params.sif_container:
+        params.docker_container}"
+    /*containerOptions "${workflow.containerEngine == 'singularity' ? '--nv':'--gpus all'}"*/
+    /*publishDir params.out_dir + "/stitched_seg", mode:"copy"*/
+    storeDir params.out_dir + "/stitched_seg"
 
     input:
-    path(img)
+    tuple val(stem), path(tiles), val(cell_size), val(stem_dup), path(slicer_json)
 
     output:
-    tuple val(stem), path("${stem}.zarr"), emit: img_zarr
+    tuple val(stem), path(out_tif), val(cell_size)
 
     script:
-    stem = img.baseName
+    out_tif = "${stem}_seg_${cell_size}.tif"
     """
-    bioformats2raw ${img} ${stem}.zarr --resolutions 8  --no-hcs
+    cp slicer_info.json  ${tiles}
+    stitcher_runner.py -i ${tiles} -o ./ --no_cell
+    mv z001_mask.ome.tiff "${out_tif}"
     """
 }
 
 
 process export_chs_from_zarr {
-    echo true
-    cache "lenient"
+    debug true
 
-    container params.container
-    containerOptions params.contOptions
-    /*conda projectDir + "/conda.yaml"*/
-    /*publishDir params.out_dir, mode:"copy"*/
-    storeDir params.out_dir
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        params.sif_container:
+        params.docker_container}"
+    containerOptions "${workflow.containerEngine == 'singularity' ? '--nv':'--gpus all'}"
+    /*publishDir params.out_dir + "/extracted_chs", mode:"copy"*/
+    storeDir params.out_dir + "/extracted_chs"
+    /*errorStrategy "ignore"*/
 
     input:
     tuple val(stem), path(zarr_in)
     val(target_ch_indexes)
 
     output:
-    tuple val(stem), path("${stem}_target_chs.tif")
+    tuple val(stem), path("${stem}_target_chs.tif"), emit: tif
+    /*tuple val(stem), path("${stem}_target_chs.npy"), emit: tif*/
 
     script:
     """
-    zarr_handler.py to_tiff --stem $stem --zarr_in ${zarr_in}/0 --target_ch_indexes ${target_ch_indexes}
+    zarr_handler.py to_tiff --stem "$stem" --zarr_in ${zarr_in}/0 --target_ch_indexes ${target_ch_indexes}
     """
 }
 
 
 process dapi_assisted_segmentation_improvement {
-    echo true
-    cache "lenient"
+    debug true
 
-    container params.container
-    containerOptions params.contOptions
-    /*conda projectDir + "/conda.yaml"*/
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        params.sif_container:
+        params.docker_container}"
+    containerOptions "${workflow.containerEngine == 'singularity' ? '--nv':'--gpus all'}"
     /*publishDir params.out_dir, mode:"copy"*/
     storeDir params.out_dir
 
@@ -169,16 +177,17 @@ process dapi_assisted_segmentation_improvement {
 
 
 process Get_complementary_nuc_labels {
-    echo true
-    cache "lenient"
+    debug true
 
-    container params.container
-    containerOptions params.contOptions
-    /*conda projectDir + "/conda.yaml"*/
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        params.sif_container:
+        params.docker_container}"
+    containerOptions "${workflow.containerEngine == 'singularity' ? '--nv':'--gpus all'}"
     /*publishDir params.out_dir, mode:"copy"*/
     storeDir params.out_dir
 
-    maxForks 1
+    errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
+    memory 150.GB
 
     input:
     tuple val(stem), path(cyto_seg), path(nuc_seg)
@@ -195,31 +204,35 @@ process Get_complementary_nuc_labels {
 
 
 process ilastik_cell_filtering {
-    echo true
-    container "eu.gcr.io/imaging-gpu-eval/ilastik:latest"
-    publishDir params.out_dir, mode:"copy"
+    debug true
 
-    machineType { ['n2-highmem-8','n2-highmem-16','n2-highmem-32','n2-highmem-64'][task.attempt-1] }
+    /*container "eu.gcr.io/imaging-gpu-eval/ilastik:latest"*/
+    container "gitlab-registry.internal.sanger.ac.uk/tl10/img-ilastik:latest"
+    publishDir params.out_dir + "/classification", mode:"copy"
+
+    /*machineType { ['n2-highmem-8','n2-highmem-16','n2-highmem-32','n2-highmem-64'][task.attempt-1] }*/
     errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
     maxRetries 4
-    maxForks 1
+    memory 60.GB
 
     input:
     tuple val(stem), file(raw_img), file(mask)
+    path(project_file)
 
     output:
-    tuple val(stem), file("$stem*table.csv")
+    tuple val(stem), file("$stem*object_features_table.csv")
     tuple val(stem), file("$stem*Object Predictions.tif")
 
     script:
     """
     #LAZYFLOW_THREADS=10 LAZYFLOW_TOTAL_RAM_MB=60000
-    bash /ilastik-1.3.3-Linux/run_ilastik.sh --headless \
-        --project=/model/project.ilp \
-        --readonly \
+    bash /opt/ilastik/run_ilastik.sh --headless \
+        --project=${project_file} \
+        --readonly=yes \
         --table_filename="./${stem}_object_features.csv" \
         --export_source="Blockwise Object Predictions" \
         --output_format="tif" \
+        --output_filename_format="./${stem}_{result_type}.tif" \
         --raw_data=${raw_img} \
         --segmentation_image=${mask}
     """
@@ -227,7 +240,7 @@ process ilastik_cell_filtering {
 
 
 process ilastik_pixel_classification {
-    echo true
+    debug true
     container "eu.gcr.io/imaging-gpu-eval/ilastik:latest"
     /*publishDir params.out_dir, mode:"copy"*/
     storeDir params.out_dir
@@ -263,12 +276,12 @@ process ilastik_pixel_classification {
 
 
 process find_tissue_border {
-    echo true
-    cache "lenient"
+    debug true
 
-    container params.container
-    containerOptions params.contOptions
-    /*conda projectDir + "/conda.yaml"*/
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        params.sif_container:
+        params.docker_container}"
+    containerOptions "${workflow.containerEngine == 'singularity' ? '--nv':'--gpus all'}"
     publishDir params.out_dir, mode:"copy"
     /*storeDir params.out_dir*/
 
@@ -288,46 +301,52 @@ process find_tissue_border {
 
 
 process expand_label_image {
-    echo true
-    cache "lenient"
+    debug true
 
-    container params.container
-    containerOptions params.contOptions
-    /*conda projectDir + "/conda.yaml"*/
-    /*publishDir params.out_dir, mode:"copy"*/
-    storeDir params.out_dir
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        params.sif_container:
+        params.docker_container}"
+    containerOptions "${workflow.containerEngine == 'singularity' ? '--nv':'--gpus all'}"
+    /*publishDir params.out_dir + "/expanded_label", mode:"copy"*/
+    storeDir params.out_dir + "/expanded_label"
 
     input:
     tuple val(stem), path(nuc_label), val(cell_size), val(distance)
 
 
     output:
-    tuple val(stem), path("${stem}_${cell_size}_label_expanded_by_${distance}.tif")
+    tuple val(stem), path("${stem}_${cell_size}_label_expanded_by_${distance}.tif"), emit: tif
 
     script:
     """
-    expand_labels.py --stem $stem --label ${nuc_label} --distance ${distance}
+    expand_labels.py --stem "$stem" --label ${nuc_label} --distance ${distance}
     mv "${stem}_label_expanded.tif" "${stem}_${cell_size}_label_expanded_by_${distance}.tif"
     """
 }
 
 
+input_files = Channel.fromPath(params.csv)
+    .splitCsv(header:true)
+    .multiMap{it ->
+        /*images: [file(it.filepath).baseName, file(it.filepath)]*/
+        images: file(it.filepath)
+    }
+
 workflow {
-    extract_tif(channel.fromPath(params.ome_tiff))
-    ilastik_pixel_classification(extract_tif.out, params.cyto_pixel_classifier, "cyto")
-    nuc_seg_only(channel.fromPath(params.ome_tiff))
+    extract_tif(input_files.images)
+    /*ilastik_pixel_classification(extract_tif.out, params.cyto_pixel_classifier, "cyto")*/
+    nuc_seg_only(input_files.images)
     dapi_assisted_segmentation_improvement(ilastik_pixel_classification.out.join(nuc_seg_only.out))
-    Get_complementary_nuc_labels(dapi_assisted_segmentation_improvement.out.join(nuc_seg_only.out))
+    /*Get_complementary_nuc_labels(dapi_assisted_segmentation_improvement.out.join(nuc_seg_only.out))*/
 }
 
 workflow extract_tif {
     take: img
     main:
         bf2raw(img)
-        export_chs_from_zarr(bf2raw.out, params.chs_for_cell_Seg)
-    emit: export_chs_from_zarr.out
+        export_chs_from_zarr(bf2raw.out, params.target_ch_indexes)
+    emit: export_chs_from_zarr.out.tif
 }
-
 
 workflow nuc_seg_only {
     take: img
@@ -336,15 +355,21 @@ workflow nuc_seg_only {
         cellpose_cell_segmentation(slice.out.tiles, params.object_diameter)
         stitch(cellpose_cell_segmentation.out.labels.combine(slice.out.info))
         expand_label_image(stitch.out.combine(params.expand_in_pixel))
-    emit: expand_label_image.out
+    emit: expand_label_image.out.tif
 }
 
 workflow run_nuc_seg {
-    nuc_seg_only(channel.fromPath(params.ome_tiff))
+    nuc_seg_only(input_files.images)
 }
 
 workflow run_tissue_seg {
-    extract_tif(channel.fromPath(params.ome_tiff))
+    extract_tif(input_files.images)
     ilastik_pixel_classification(extract_tif.out, params.tissue_pixel_classifier, "tissue")
     find_tissue_border(ilastik_pixel_classification.out)
+}
+
+workflow run_cell_classification {
+    nuc_seg_only(input_files.images)
+    extract_tif(input_files.images)
+    ilastik_cell_filtering(extract_tif.out.join(nuc_seg_only.out), params.cyto_pixel_classifier)
 }
