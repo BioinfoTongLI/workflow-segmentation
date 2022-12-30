@@ -17,7 +17,6 @@ import tifffile as tf
 
 
 class Helper(object):
-
     def __init__(self, img_in_path: str, stem: str):
         self.img_in = Path(img_in_path.replace("\\", ""))
         assert self.img_in.exists()
@@ -34,8 +33,9 @@ class Helper(object):
         else:
             final_img_dim = "CYX"
             target_ch_names = np.array(ch_names)[np.array(ch_ind)]
-        target_chs = self.imgs.get_image_dask_data(final_img_dim,
-                T=0, Z=0, S=0, C=ch_ind)
+        target_chs = self.imgs.get_image_dask_data(
+            final_img_dim, T=0, Z=0, S=0, C=ch_ind
+        )
         print(target_chs)
 
         tf.imwrite(
@@ -50,9 +50,8 @@ class Helper(object):
             # planarconfig='separate',
         )
 
-
     # def expand(self, distance):
-        # self.imgs
+    # self.imgs
 
 
 if __name__ == "__main__":

@@ -22,8 +22,8 @@ def main(args):
     rois = pd.read_csv(args.rois).set_index("object_id")
     filtered_cell_ids = np.unique(filtered_label)
     print(rois.loc[filtered_cell_ids].shape)
-    rois.to_csv("%s_filtered_rois.tsv" %args.prefix, sep="\t")
-    tf.imsave("%s_filtered_labels.tif" %args.prefix, filtered_label, dtype=np.uint32)
+    rois.to_csv("%s_filtered_rois.tsv" % args.prefix, sep="\t")
+    tf.imsave("%s_filtered_labels.tif" % args.prefix, filtered_label, dtype=np.uint32)
 
 
 if __name__ == "__main__":

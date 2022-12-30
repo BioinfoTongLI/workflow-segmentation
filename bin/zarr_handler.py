@@ -31,6 +31,7 @@ import tifffile as tf
 def white_tophat_cp(chunk, **kwargs):
     return white_tophat(cp.array(chunk), **kwargs).get()
 
+
 class Helper(object):
     def __init__(self, zarr_in: str):
         zarr_in = Path(zarr_in)
@@ -81,7 +82,7 @@ class Helper(object):
         )
 
         for i, j in enumerate(target_ch_indexes):
-            ch = target_ch_indexes[i].rechunk({0:"auto", 1:"auto"})
+            ch = target_ch_indexes[i].rechunk({0: "auto", 1: "auto"})
             # hat_enhenced = white_tophat(cp.array(chs_with_peaks[i]), footprint=footprint).get()
             hat_enhenced = ch.map_overlap(
                 white_tophat_cp,
@@ -90,7 +91,7 @@ class Helper(object):
                 dtype=np.float16,
             )
 
-            zarr.save(f'enhanced_spots_ch{i}', hat_enhenced.compute())
+            zarr.save(f"enhanced_spots_ch{i}", hat_enhenced.compute())
 
             del hat_enhenced
             cp._default_memory_pool.free_all_blocks()
@@ -98,30 +99,29 @@ class Helper(object):
         store = parse_url(pathlib.Path(f"{stem}_spot_enhanced"), mode="w").store
         group = zarr.group(store=store).create_group("0")
 
-        write_image(image=hat_enhenced, group=group, chunks=(2 ** 10, 2 ** 10))
+        write_image(image=hat_enhenced, group=group, chunks=(2**10, 2**10))
 
         # tf.imwrite(f"{stem}_spot_enhanced.tif", hat_enhenced[0].squeeze(), imagej=True, metadata={'axes': 'YX'})
 
         return self
 
-
     def enhance_all(self, stem: str, diam: int):
         chs_with_peaks = self.raw_data[0, :, 0]
         # enhanced_chs = []
         # for ch in chs_with_peaks:
-            # enhanced_chs.append(white_tophat(cp.array(ch), footprint=disk(diam)).get())
+        # enhanced_chs.append(white_tophat(cp.array(ch), footprint=disk(diam)).get())
         # enhanced_chs = np.array(enhanced_chs)
         # print(enhanced_chs)
         # chs_with_peaks = chs_with_peaks.rechunk({0:1, 1:-1, 2:-1})
         # chs_with_peaks = chs_with_peaks.rechunk({0:1, 1:"auto", 2:"auto"})
         print(chs_with_peaks)
         # footprint = cp.expand_dims(disk(diam//2), 0)
-        footprint = disk(diam//2)
+        footprint = disk(diam // 2)
 
         store = parse_url(pathlib.Path(f"{stem}_spot_enhanced"), mode="w").store
 
         for i in range(chs_with_peaks.shape[0]):
-            ch = chs_with_peaks[i].rechunk({0:"auto", 1:"auto"})
+            ch = chs_with_peaks[i].rechunk({0: "auto", 1: "auto"})
             # hat_enhenced = white_tophat(cp.array(chs_with_peaks[i]), footprint=footprint).get()
             hat_enhenced = ch.map_overlap(
                 white_tophat_cp,
@@ -138,13 +138,13 @@ class Helper(object):
 
         # print(footprint)
         # hat_enhenced = chs_with_peaks.map_overlap(
-            # white_tophat_cp,
-            # # white_tophat,
-            # # meta=cp.array(()),
-            # depth=(0, diam * 3, diam * 3),
-            # footprint=footprint,
-            # # selem=np.expand_dims(disk(diam), 0),
-            # dtype=np.float16,
+        # white_tophat_cp,
+        # # white_tophat,
+        # # meta=cp.array(()),
+        # depth=(0, diam * 3, diam * 3),
+        # footprint=footprint,
+        # # selem=np.expand_dims(disk(diam), 0),
+        # dtype=np.float16,
         # )
 
         # store = parse_url(pathlib.Path(f"{stem}_spot_enhanced"), mode="w").store
@@ -154,13 +154,12 @@ class Helper(object):
 
         # write_image(image=enhanced_chs, group=group, axes="cyx", chunks=(1, 2 ** 10, 2 ** 10))
 
-
     def to_tiff(self, stem, target_ch_indexes):
-        target_chs = self.raw_data[:, target_ch_indexes, :].squeeze()
+        print(self.raw_data)
+        target_chs = self.raw_data.squeeze()[target_ch_indexes]
         print(target_chs)
 
         tf.imwrite(f"{stem}_target_chs.tif", target_chs, imagej=True)
-
 
     def call_peaks(
         self,
@@ -169,11 +168,11 @@ class Helper(object):
         tp_percentile: int,
         peak_separation: int,
         tpy_search_range: int,
-        anchor_ch_index: int
+        anchor_ch_index: int,
     ):
         print(self.raw_data)
         df = tp.locate(
-                self.raw_data.compute(),
+            self.raw_data.compute(),
             diam,
             separation=peak_separation,
             percentile=tp_percentile,
@@ -188,8 +187,8 @@ class Helper(object):
 
         # tracks = tp.filtering.filter_stubs(t, 5)
         # tracks = tracks.assign(
-            # x_int=lambda df: np.round(df.x).astype(np.uint64),
-            # y_int=lambda df: np.round(df.y).astype(np.uint64),
+        # x_int=lambda df: np.round(df.x).astype(np.uint64),
+        # y_int=lambda df: np.round(df.y).astype(np.uint64),
         # )
         # tracks.to_csv(f"{stem}_tracked_peaks.tsv", sep="\t")
 
@@ -197,9 +196,9 @@ class Helper(object):
 if __name__ == "__main__":
     # from dask.distributed import Client, LocalCluster
     # client = Client(
-        # # n_workers=10,
-        # # processes=False,
-        # # memory_limit="20GB",
+    # # n_workers=10,
+    # # processes=False,
+    # # memory_limit="20GB",
     # )
     # print(client)
     fire.Fire(Helper)

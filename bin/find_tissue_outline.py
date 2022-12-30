@@ -48,6 +48,5 @@ def main(stem, tissue_seg):
         fh.write(tissue_cnt_wkt)
 
 
-
 if __name__ == "__main__":
     fire.Fire(main)

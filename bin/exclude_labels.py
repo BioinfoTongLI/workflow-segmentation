@@ -10,8 +10,10 @@
 
 """
 import fire
+
 try:
     import cupy as xp
+
     print("Using Cupy")
 except:
     import numpy as xp
@@ -24,7 +26,9 @@ def main(stem, label, nuc):
     max_seg_id = xp.max(lab)
     nuc = xp.asarray(imread(nuc).squeeze())
     print(lab, nuc)
-    tf.imwrite(f"{stem}_improved_seg_complementary_non_cell.tif", (nuc * ~(lab > 0)).get())
+    tf.imwrite(
+        f"{stem}_improved_seg_complementary_non_cell.tif", (nuc * ~(lab > 0)).get()
+    )
     xp._default_memory_pool.free_all_blocks()
     nucs_to_remove = xp.unique(nuc * (lab > 0))
     del lab

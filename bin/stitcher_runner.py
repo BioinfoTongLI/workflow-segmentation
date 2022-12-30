@@ -56,7 +56,9 @@ def main(
     no_cell: bool,
     slicer_info_path: Path,
 ):
-    padding, overlap, num_channels = read_slicer_info(img_dir, slicer_info_path, padding_str, overlap, no_cell)
+    padding, overlap, num_channels = read_slicer_info(
+        img_dir, slicer_info_path, padding_str, overlap, no_cell
+    )
     make_dir_if_not_exists(out_dir)
 
     mask_out_name_template = "z{z:03d}_mask.ome.tiff"

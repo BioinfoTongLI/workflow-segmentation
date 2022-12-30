@@ -23,7 +23,13 @@ def main(stem, label, distance, ilastik_mask=None):
     else:
         masked_label = label
     expanded = expand_labels(masked_label, distance=distance)
-    tf.imwrite(f"{stem}_label_expanded.tif", expanded, dtype=np.uint32)
+    tf.imwrite(
+        f"{stem}_label_expanded.tif",
+        expanded,
+        metadata={"axes": "YX"},
+        # imagej=True,
+        dtype=np.uint32,
+    )
 
 
 if __name__ == "__main__":
