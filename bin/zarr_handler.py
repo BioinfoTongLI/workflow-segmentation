@@ -31,7 +31,6 @@ import tifffile as tf
 def white_tophat_cp(chunk, **kwargs):
     return white_tophat(cp.array(chunk), **kwargs).get()
 
-
 class Helper(object):
     def __init__(self, zarr_in: str):
         zarr_in = Path(zarr_in)
@@ -109,7 +108,7 @@ class Helper(object):
         chs_with_peaks = self.raw_data[0, :, 0]
         # enhanced_chs = []
         # for ch in chs_with_peaks:
-        # enhanced_chs.append(white_tophat(cp.array(ch), footprint=disk(diam)).get())
+            # enhanced_chs.append(white_tophat(cp.array(ch), footprint=disk(diam)).get())
         # enhanced_chs = np.array(enhanced_chs)
         # print(enhanced_chs)
         # chs_with_peaks = chs_with_peaks.rechunk({0:1, 1:-1, 2:-1})
@@ -155,7 +154,6 @@ class Helper(object):
         # write_image(image=enhanced_chs, group=group, axes="cyx", chunks=(1, 2 ** 10, 2 ** 10))
 
     def to_tiff(self, stem, target_ch_indexes):
-        print(self.raw_data)
         target_chs = self.raw_data.squeeze()[target_ch_indexes]
         print(target_chs)
 
@@ -179,7 +177,7 @@ class Helper(object):
             minmass=50,
             engine="numba",
         )
-        print(df.y.max(), df.x.max())
+        # print(df.y.max(), df.x.max())
         df["x_int"] = df.x.astype(np.uint32)
         df["y_int"] = df.y.astype(np.uint32)
         df.to_csv(f"{stem}_detected_peaks.tsv", sep="\t")
@@ -187,19 +185,11 @@ class Helper(object):
 
         # tracks = tp.filtering.filter_stubs(t, 5)
         # tracks = tracks.assign(
-        # x_int=lambda df: np.round(df.x).astype(np.uint64),
-        # y_int=lambda df: np.round(df.y).astype(np.uint64),
+            # x_int=lambda df: np.round(df.x).astype(np.uint64),
+            # y_int=lambda df: np.round(df.y).astype(np.uint64),
         # )
         # tracks.to_csv(f"{stem}_tracked_peaks.tsv", sep="\t")
 
 
 if __name__ == "__main__":
-    # from dask.distributed import Client, LocalCluster
-    # client = Client(
-    # # n_workers=10,
-    # # processes=False,
-    # # memory_limit="20GB",
-    # )
-    # print(client)
     fire.Fire(Helper)
-    # client.close()

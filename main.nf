@@ -3,17 +3,16 @@
 
 nextflow.enable.dsl=2
 
-params.csv = "/nfs/team283_imaging/playground_Tong/Lea/20221009_fetal_analysis/template.csv"
+params.csv = "[path-to-template.csv]"
 params.object_diameter = [70]
 params.target_ch_indexes = "[1,2,3,4]" //"[4,0]"
-/*params.out_dir = "/nfs/team283_imaging/playground_Tong/Lea/20220810_analysis/"*/
-params.out_dir = "/nfs/team283_imaging/playground_Tong/Lea/20221009_fetal_analysis/"
-params.tilesize = 13000
+params.out_dir = "[path-to-output-dir]"
+params.tilesize = 13000 // for tiled cell segmentation
+params.target_cellpose_ch_ind = 1 //target channel to perform cell segmentation on
 
-/*params.cyto_pixel_classifier = "/nfs/team283_imaging/OB_ADR/playground_Tong/classifiers/cyto_detection.ilp"*/
-params.cyto_pixel_classifier = "/nfs/team283_imaging/playground_Tong/Lea/20220810_analysis/00IQ_20220312.ilp"
+params.cyto_pixel_classifier = "[path-to-ilastik-cytoplasm-classifier]"
 
-params.tissue_pixel_classifier = "/nfs/team283_imaging/OB_ADR/playground_Tong/classifiers/tissue_finder.ilp"
+params.tissue_pixel_classifier = "[path-to-ilastik-tissue-classifier]"
 params.expand_in_pixel = [10]
 
 params.docker_container = "gitlab-registry.internal.sanger.ac.uk/tl10/workflow-segmentation:latest"
@@ -91,6 +90,39 @@ process cellpose_cell_segmentation {
 }
 
 
+process cellpose_cell_segmentation {
+    echo true
+
+    cache "lenient"
+    container params.container
+    containerOptions params.contOptions
+    /*publishDir params.out_dir, mode:"copy"*/
+    storeDir params.out_dir + "/cellpose_seg"
+
+    queue "gpu-normal"
+    /*queue "gpu-basement"*/
+    clusterOptions = "-gpu 'num=1:gmem=2000'"
+    cpus 4
+    memory 64.GB
+
+    maxForks params.max_fork
+
+    input:
+    path(img)
+    each cell_size
+    val target_ch_ind
+
+    output:
+    tuple val(stem), path("${stem}_cp_masks.tif"), val(cell_size), emit: labels
+
+    script:
+    stem = img.baseName
+    """
+    python -m cellpose --dir ./ --use_gpu --diameter ${cell_size} --flow_threshold 0 --chan ${target_ch_ind} --pretrained_model cyto2 --save_tif --no_npy
+    """
+}
+
+
 process stitch {
     debug true
 
@@ -159,7 +191,7 @@ process dapi_assisted_segmentation_improvement {
         params.docker_container}"
     containerOptions "${workflow.containerEngine == 'singularity' ? '--nv':'--gpus all'}"
     /*publishDir params.out_dir, mode:"copy"*/
-    storeDir params.out_dir
+    storeDir params.out_dir + "/nuclei_guided_segs"
 
     maxForks 2
 
@@ -184,7 +216,7 @@ process Get_complementary_nuc_labels {
         params.docker_container}"
     containerOptions "${workflow.containerEngine == 'singularity' ? '--nv':'--gpus all'}"
     /*publishDir params.out_dir, mode:"copy"*/
-    storeDir params.out_dir
+    storeDir params.out_dir + "/nuc_seg_complementary"
 
     errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
     memory 150.GB
@@ -243,7 +275,7 @@ process ilastik_pixel_classification {
     debug true
     container "eu.gcr.io/imaging-gpu-eval/ilastik:latest"
     /*publishDir params.out_dir, mode:"copy"*/
-    storeDir params.out_dir
+    storeDir params.out_dir + "/pixel_prediction"
 
     machineType { ['n2-highmem-8','n2-highmem-16','n2-highmem-32','n2-highmem-64'][task.attempt-1] }
     errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
@@ -262,9 +294,9 @@ process ilastik_pixel_classification {
     script:
     """
     #LAZYFLOW_THREADS=10 LAZYFLOW_TOTAL_RAM_MB=60000
-    bash /ilastik-1.3.3-Linux/run_ilastik.sh --headless \
+    bash /opt/ilastik/run_ilastik.sh --headless \
         --project=${classifier} \
-        --readonly \
+        --readonly 1 \
         --export_source="simple segmentation" \
         --output_format="tif" \
         --raw_data=${raw_img}
@@ -352,8 +384,8 @@ workflow nuc_seg_only {
     take: img
     main:
         slice(img, params.tilesize)
-        cellpose_cell_segmentation(slice.out.tiles, params.object_diameter)
-        stitch(cellpose_cell_segmentation.out.labels.combine(slice.out.info))
+        cellpose_cell_segmentation_batch(slice.out.tiles, params.object_diameter)
+        stitch(cellpose_cell_segmentation_batch.out.labels.combine(slice.out.info))
         expand_label_image(stitch.out.combine(params.expand_in_pixel))
     emit: expand_label_image.out.tif
 }
