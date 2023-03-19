@@ -9,12 +9,10 @@
 MOUNT_POINT='/tmp/work/'
 
 DATE_WITH_TIME=`date "+%Y%m%d%H%M"`
-TRACE_FILE="$MOUNT_POINT/${USER}_${DATE_WITH_TIME}_segmentation_trace/segmentation_trace_${DATE_WITH_TIME}.tsv"
 TMP_NF_WORK="$MOUNT_POINT/${USER}_${DATE_WITH_TIME}_segmentation_work"
 
-NXF_OPTS='-Dleveldb.mmap=false' NXF_WORK=$TMP_NF_WORK LSB_DEFAULTGROUP='team283' nextflow -trace nextflow.executor run main.nf \
-	-params-file $1 \
-	-with-trace $TRACE_FILE \
+NXF_OPTS='-Dleveldb.mmap=false' NXF_WORK=$TMP_NF_WORK nextflow run /lustre/scratch126/cellgen/team283/tl10/workflow-segmentation/main.nf \
 	-profile local \
-	-entry run_nuc_seg \
+	-with-report \
 	-resume
+	#-params-file $1 \
