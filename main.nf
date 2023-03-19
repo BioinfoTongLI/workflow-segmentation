@@ -16,10 +16,11 @@ params.tissue_pixel_classifier = "[path-to-ilastik-tissue-classifier]"
 params.expand_in_pixel = [10]
 
 params.docker_container = "gitlab-registry.internal.sanger.ac.uk/tl10/workflow-segmentation:latest"
-params.sif_container = "/lustre/scratch117/cellgen/team283/imaging_sifs/large_cellseg.sif"
+params.sif_container = "/lustre/scratch126/cellgen/team283/imaging_sifs/large_cellseg.sif"
 params.max_fork = 3
+params.ch_index = 0 // can only use 0 for now
 
-include { BIOINFOTONGLI_BIOFORMATS2RAW as bf2raw } from '/lustre/scratch117/cellgen/team283/tl10/modules/modules/bioinfotongli/bioformats2raw/main.nf' addParams(
+include { BIOINFOTONGLI_BIOFORMATS2RAW as bf2raw } from '/lustre/scratch126/cellgen/team283/tl10/modules/modules/bioinfotongli/bioformats2raw/main.nf' addParams(
     enable_conda:false,
     publish:false,
     store:true,
@@ -43,6 +44,7 @@ process slice {
     input:
     path(tif)
     val(tilesize)
+    val(ch_index)
 
     output:
     tuple val(stem), path("${stem}_raw_splits"), emit: tiles
@@ -51,12 +53,12 @@ process slice {
     script:
     stem = tif.baseName
     """
-    slicer_runner.py -i ${tif} -o "${stem}_raw_splits" --selected_channels 0 -s ${tilesize}
+    slicer_runner.py -i ${tif} -o "${stem}_raw_splits" --selected_channels ${ch_index} -s ${tilesize}
     """
 }
 
 
-process cellpose_cell_segmentation {
+process cellpose_cell_segmentation_batch {
     debug true
 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
@@ -142,7 +144,7 @@ process stitch {
     storeDir params.out_dir + "/stitched_seg"
 
     input:
-    tuple val(stem), path(tiles), val(cell_size), val(stem_dup), path(slicer_json)
+    tuple val(stem), path(tiles), val(cell_size), path(slicer_json)
 
     output:
     tuple val(stem), path(out_tif), val(cell_size)
@@ -169,7 +171,7 @@ process export_chs_from_zarr {
     /*errorStrategy "ignore"*/
 
     input:
-    tuple val(stem), path(zarr_in)
+    tuple val(meta), path(zarr_in)
     val(target_ch_indexes)
 
     output:
@@ -177,6 +179,7 @@ process export_chs_from_zarr {
     /*tuple val(stem), path("${stem}_target_chs.npy"), emit: tif*/
 
     script:
+    stem=meta["stem"]
     """
     zarr_handler.py to_tiff --stem "$stem" --zarr_in ${zarr_in}/0 --target_ch_indexes ${target_ch_indexes}
     """
@@ -360,7 +363,7 @@ process expand_label_image {
 input_files = Channel.fromPath(params.csv)
     .splitCsv(header:true)
     .multiMap{it ->
-        /*images: [file(it.filepath).baseName, file(it.filepath)]*/
+        images_for_bf2raw: [[stem:file(it.filepath).baseName], file(it.filepath)]
         images: file(it.filepath)
     }
 
@@ -376,16 +379,16 @@ workflow extract_tif {
     take: img
     main:
         bf2raw(img)
-        export_chs_from_zarr(bf2raw.out, params.target_ch_indexes)
+        export_chs_from_zarr(bf2raw.out.zarr, params.target_ch_indexes)
     emit: export_chs_from_zarr.out.tif
 }
 
 workflow nuc_seg_only {
     take: img
     main:
-        slice(img, params.tilesize)
+        slice(img, params.tilesize, params.ch_index)
         cellpose_cell_segmentation_batch(slice.out.tiles, params.object_diameter)
-        stitch(cellpose_cell_segmentation_batch.out.labels.combine(slice.out.info))
+        stitch(cellpose_cell_segmentation_batch.out.labels.join(slice.out.info))
         expand_label_image(stitch.out.combine(params.expand_in_pixel))
     emit: expand_label_image.out.tif
 }
@@ -395,13 +398,13 @@ workflow run_nuc_seg {
 }
 
 workflow run_tissue_seg {
-    extract_tif(input_files.images)
-    ilastik_pixel_classification(extract_tif.out, params.tissue_pixel_classifier, "tissue")
-    find_tissue_border(ilastik_pixel_classification.out)
+    extract_tif(input_files.images_for_bf2raw)
+    /*ilastik_pixel_classification(extract_tif.out, params.tissue_pixel_classifier, "tissue")*/
+    /*find_tissue_border(ilastik_pixel_classification.out)*/
 }
 
 workflow run_cell_classification {
     nuc_seg_only(input_files.images)
-    extract_tif(input_files.images)
+    extract_tif(input_files.images_for_bf2raw)
     ilastik_cell_filtering(extract_tif.out.join(nuc_seg_only.out), params.cyto_pixel_classifier)
 }
