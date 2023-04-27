@@ -6,7 +6,7 @@ nextflow.enable.dsl=2
 params.csv = "[path-to-template.csv]"
 params.object_diameter = [70]
 params.target_ch_indexes = "[1,2,3,4]" //"[4,0]"
-params.out_dir = "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_segmentation/"
+params.out_dir = "./"
 params.tilesize = 13000 // for tiled cell segmentation
 params.target_cellpose_ch_ind = 1 //target channel to perform cell segmentation on
 
@@ -362,6 +362,31 @@ process expand_label_image {
 }
 
 
+process segmentation_sam {
+    debug true
+
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        params.sif_container:
+        "segmenation:sam"}"
+    containerOptions "${workflow.containerEngine == 'singularity' ? '--nv':'--gpus all'}"
+
+    storeDir params.out_dir + "/sam_prediction"
+
+    input:
+    tuple val(stem), path(image)
+
+    output:
+    tuple val(stem), path("${stem}/label.tif"), emit: label_tif
+    tuple val(stem), path("${stem}/metadata.csv"), emit:md, optional:true
+
+    script:
+    """
+    mkdir ${stem}
+    sam_segmentation.py --stem $stem --image $image
+    """
+}
+
+
 input_files = Channel.fromPath(params.csv)
     .splitCsv(header:true)
     .multiMap{it ->
@@ -415,28 +440,7 @@ workflow small_image_cellpose {
      cellpose_cell_segmentation(
         channel.from(
             [
-                ["/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41334/23059_V1 Layer 2-3 - SBM 20230313 AB c93 R_25333_2842_28238_4827.tif", "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41334/23059_V1 Layer 2-3 - SBM 20230313 AB c93 R_25333_2842_28238_4827_mask.tif"],
-                ["/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41334/23047_V1 Layer 2-3 - SBM 20230313 AB c93 L preferred_7138_3825_10540_6114.tif", "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41334/23047_V1 Layer 2-3 - SBM 20230313 AB c93 L preferred_7138_3825_10540_6114_mask.tif"],
-
-                ["/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41336/23051_V1 Layer 2-3 - SBM 20230313 AB c95_26572_4050_30041_7879.tif", "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41336/23051_V1 Layer 2-3 - SBM 20230313 AB c95_26572_4050_30041_7879_mask.tif"],
-
-                ["/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41337/23048_V1 Layer 2-3 - SBM 20230313 AB c93 L preferred_25847_5990_29834_9032.tif", "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41337/23048_V1 Layer 2-3 - SBM 20230313 AB c93 L preferred_25847_5990_29834_9032_mask.tif"],
-                ["/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41337/23057_V1 Layer 2-3 - SBM 20230313 AB c94 R_7337_8261_10961_10829.tif", "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41337/23057_V1 Layer 2-3 - SBM 20230313 AB c94 R_7337_8261_10961_10829_mask.tif"],
-
-                ["/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41338/23050_V1 Layer 2-3 - SBM 20230313 AB c95_27704_7396_33083_10841.tif", "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41338/23050_V1 Layer 2-3 - SBM 20230313 AB c95_27704_7396_33083_10841_mask.tif"],
-
-                ["/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41339/23058_V1 Layer 2-3 - SBM 20230313 AB c94 L_5759_5067_8756_7901.tif", "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41339/23058_V1 Layer 2-3 - SBM 20230313 AB c94 L_5759_5067_8756_7901_mask.tif"],
-                ["/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41339/23044_V1 Layer 2-3 - SBM 20230313 Atlas-c95 R preferred_23659_1690_27520_4225.tif", "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41339/23044_V1 Layer 2-3 - SBM 20230313 Atlas-c95 R preferred_23659_1690_27520_4225_mask.tif"],
-
-                ["/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41341/23049_V1 Layer 2-3 - SBM 20230313 AB c95_6040_2723_10727_5814.tif", "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41341/23049_V1 Layer 2-3 - SBM 20230313 AB c95_6040_2723_10727_5814_mask.tif"],
-
-                ["/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41342/23046_V1 Layer 2-3 - SBM 20230313 AB c95 L_26417_6669_30209_10129.tif", "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41342/23046_V1 Layer 2-3 - SBM 20230313 AB c95 L_26417_6669_30209_10129_mask.tif"],
-                ["/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41342/23056_V1 Layer 2-3 - SBM 20230313 AB c95 R preferred_7381_8851_12262_11712.tif", "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41342/23056_V1 Layer 2-3 - SBM 20230313 AB c95 R preferred_7381_8851_12262_11712_mask.tif"],
-
-                ["/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41343/23054_V1 Layer 2-3 - SBM 20230313 AB c93_29989_7370_32465_10935.tif", "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41343/23054_V1 Layer 2-3 - SBM 20230313 AB c93_29989_7370_32465_10935_mask.tif"],
-
                 // misaligned slides below
-
                 ["/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41340/23052_V1 Layer 2-3 - SBM 20230313 AB c95 L preferred_22216_12544_26848_15215.tif", "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41340/23052_V1 Layer 2-3 - SBM 20230313 AB c95 L preferred_22216_12544_26848_15215_mask.tif"],
                 ["/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41340/23053_V1 Layer 2-3 - SBM 20230313 AB c95 R_4072_8190_7285_11772.tif", "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41340/23053_V1 Layer 2-3 - SBM 20230313 AB c95 R_4072_8190_7285_11772_mask.tif"],
 
@@ -444,4 +448,9 @@ workflow small_image_cellpose {
             ]
         ), 70, 0
     )
+}
+
+workflow sam_demo {
+    segmentation_sam(["test", "/nfs/team283_imaging/0HarmonyStitched/JM_TCA/230320_162812-V__2023-03-20T16_26_02-Measurement 1_max/O22_F1T1_max.ome.tiff"])
+    /*segmentation_sam(["test", "/nfs/team283_imaging/playground_Tong/Screenshot 2023-04-07 at 00.22.16.png"])*/
 }

@@ -1,0 +1,4 @@
+csv : [path-to-seg.csv]
+out_dir : [output-dir]
+object_diameter : [70]
+expand_in_pixel : [10, 15]
