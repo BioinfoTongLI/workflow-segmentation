@@ -6,7 +6,7 @@
 # Distributed under terms of the BSD-3 license.
 #
 
-MOUNT_POINT='/lustre/scratch117/cellgen/team283/tl10/NXF_WORK/'
+MOUNT_POINT='/lustre/scratch126/cellgen/team283/NXF_WORK/'
 
 TMP_NF_WORK="$MOUNT_POINT/${USER}_segmentation_work"
 

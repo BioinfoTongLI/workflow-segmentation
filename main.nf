@@ -30,6 +30,8 @@ include { BIOINFOTONGLI_BIOFORMATS2RAW as bf2raw } from '/lustre/scratch126/cell
 
 process slice {
 
+    label "defalt"
+
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         params.sif_container:
         params.docker_container}"
@@ -61,6 +63,8 @@ process slice {
 process cellpose_cell_segmentation_batch {
     debug true
 
+    label "cellpose"
+
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         params.sif_container:
         params.docker_container}"
@@ -85,6 +89,7 @@ process cellpose_cell_segmentation_batch {
 
     script:
     """
+    export CELLPOSE_LOCAL_MODELS_PATH=/lustre/scratch126/cellgen/team283/NXF_WORK/cellpose_models
     python -m cellpose --dir ./${tiles} --use_gpu --diameter ${cell_size} --flow_threshold 0 --chan 0 --pretrained_model cyto2 --save_tif --no_npy
     mkdir "${stem}_label_splits_cell_size_${cell_size}"
     mv ${tiles}/*cp_masks.tif "${stem}_label_splits_cell_size_${cell_size}"
@@ -129,6 +134,8 @@ process cellpose_cell_segmentation {
 
 process stitch {
     debug true
+
+    label "default"
 
     cpus 1
     /*label 'huge_mem'*/
@@ -339,6 +346,11 @@ process find_tissue_border {
 
 process expand_label_image {
     debug true
+
+    label "default"
+    cpus 1
+    memory 130.GB
+    queue "imaging"
 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         params.sif_container:
