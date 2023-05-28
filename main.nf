@@ -349,7 +349,7 @@ process expand_label_image {
 
     label "default"
     cpus 1
-    memory 130.GB
+    memory 280.GB
     queue "imaging"
 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
