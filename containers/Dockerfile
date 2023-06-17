@@ -1,4 +1,3 @@
-#FROM nvidia/cuda:11.2.0-cudnn8-runtime-ubuntu20.04
 FROM nvidia/cuda:11.7.1-cudnn8-runtime-ubuntu22.04
 
 RUN apt-get -y update && apt-get -y install --no-install-recommends procps python3 python3-dev python3-pip python-is-python3 libgomp1 ffmpeg libsm6 libxext6
