@@ -16,8 +16,7 @@ params.tissue_pixel_classifier = "[path-to-ilastik-tissue-classifier]"
 params.expand_in_pixel = [10]
 
 params.docker_container = "gitlab-registry.internal.sanger.ac.uk/tl10/workflow-segmentation:latest"
-params.sif_container = "/lustre/scratch126/cellgen/team283/imaging_sifs/large_cellseg.sif"
-params.max_fork = 3
+params.sif_container = "/lustre/scratch126/cellgen/team283/imaging_sifs/workflow-segmentation.sif"
 params.ch_index = 0 // can only use 0 for now
 
 include { BIOINFOTONGLI_BIOFORMATS2RAW as bf2raw } from '/lustre/scratch126/cellgen/team283/tl10/modules/modules/bioinfotongli/bioformats2raw/main.nf' addParams(
@@ -30,18 +29,12 @@ include { BIOINFOTONGLI_BIOFORMATS2RAW as bf2raw } from '/lustre/scratch126/cell
 
 process slice {
 
-    label "defalt"
-
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         params.sif_container:
         params.docker_container}"
     containerOptions "${workflow.containerEngine == 'singularity' ? '--nv':'--gpus all'}"
     /*publishDir params.out_dir, mode:"copy"*/
     storeDir params.out_dir + "/slices"
-
-    cpus 1
-    memory 130.GB
-    queue "imaging"
 
     input:
     path(tif)
@@ -63,22 +56,12 @@ process slice {
 process cellpose_cell_segmentation_batch {
     debug true
 
-    label "cellpose"
-
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         params.sif_container:
         params.docker_container}"
-    containerOptions "${workflow.containerEngine == 'singularity' ? '--nv':'--gpus all'}"
+    containerOptions "${workflow.containerEngine == 'singularity' ? '--nv -B /lustre/scratch126/cellgen/team283/NXF_WORK/cellpose_models:/lustre/scratch126/cellgen/team283/NXF_WORK/cellpose_models':'--gpus all'} "
     /*publishDir params.out_dir, mode:"copy"*/
     storeDir params.out_dir + "/sparse_segs"
-
-    queue "gpu-normal"
-    /*queue "gpu-basement"*/
-    clusterOptions = {" -gpu \"mode=shared:j_exclusive=no:gmem=12000:num=1\""}
-    cpus 10
-    memory 64.GB
-
-    maxForks params.max_fork
 
     input:
     tuple val(stem), path(tiles)
@@ -127,23 +110,13 @@ process cellpose_cell_segmentation {
     script:
     stem = img.baseName
     """
-    small_iamge_cell_expand.py --diam ${cell_size} --chan_ind ${target_ch_ind} --pretrained_model cyto2 --image_in ${img} --image_out "${stem}_cropped_raw.tif" --label_out "${stem}_label.tif" --mask_in ${img_mask}
+    small_image_cell_expand.py --diam ${cell_size} --chan_ind ${target_ch_ind} --pretrained_model cyto2 --image_in ${img} --image_out "${stem}_cropped_raw.tif" --label_out "${stem}_label.tif" --mask_in ${img_mask}
     """
 }
 
 
 process stitch {
     debug true
-
-    label "default"
-
-    cpus 1
-    /*label 'huge_mem'*/
-    memory { 330.GB * task.attempt }
-    /*time { 1.hour * task.attempt }*/
-
-    errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
-    maxRetries 3
 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         params.sif_container:
@@ -347,11 +320,6 @@ process find_tissue_border {
 process expand_label_image {
     debug true
 
-    label "default"
-    cpus 1
-    memory 280.GB
-    queue "imaging"
-
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         params.sif_container:
         params.docker_container}"
@@ -361,7 +329,6 @@ process expand_label_image {
 
     input:
     tuple val(stem), path(nuc_label), val(cell_size), val(distance)
-
 
     output:
     tuple val(stem), path("${stem}_${cell_size}_label_expanded_by_${distance}.tif"), emit: tif
@@ -421,6 +388,15 @@ workflow run_cell_classification {
     nuc_seg_only(input_files.images)
     extract_tif(input_files.images_for_bf2raw)
     ilastik_cell_filtering(extract_tif.out.join(nuc_seg_only.out), params.cyto_pixel_classifier)
+}
+
+workflow run_extract_chs_from_zarr {
+    params.target_ch_indexes = Channel.from([[0,1]])
+    params.zarr_to_extract = [[["stem":"CM007"], file("/nfs/team283_imaging/RV_RPT/playground_Tong/CM007/registration/ome_zarr/CM007_optflow_seg_optflow_reg_result_stack.zarr/")]]
+    export_chs_from_zarr(
+        Channel.from(params.zarr_to_extract),
+        params.target_ch_indexes
+    )
 }
 
 workflow small_image_cellpose {
