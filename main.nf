@@ -20,28 +20,22 @@ params.sif_container = "/lustre/scratch126/cellgen/team283/imaging_sifs/large_ce
 params.max_fork = 3
 params.ch_index = 0 // can only use 0 for now
 
-include { BIOINFOTONGLI_BIOFORMATS2RAW as bf2raw } from '/lustre/scratch126/cellgen/team283/tl10/modules/modules/bioinfotongli/bioformats2raw/main.nf' addParams(
-    enable_conda:false,
-    publish:false,
-    store:true,
-    out_dir:params.out_dir
-)
+//include { BIOINFOTONGLI_BIOFORMATS2RAW as bf2raw } from '/lustre/scratch126/cellgen/team283/tl10/modules/modules/bioinfotongli/bioformats2raw/main.nf' addParams(
+//    enable_conda:false,
+//    publish:false,
+//    store:true,
+//    out_dir:params.out_dir
+//)
 
 
 process slice {
 
-    label "defalt"
-
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         params.sif_container:
         params.docker_container}"
-    containerOptions "${workflow.containerEngine == 'singularity' ? '--nv':'--gpus all'}"
+    containerOptions "${workflow.containerEngine == 'singularity' ? '--nv -B /scratch,/mnt':'--gpus all -v /scratch,/mnt'}"
     /*publishDir params.out_dir, mode:"copy"*/
     storeDir params.out_dir + "/slices"
-
-    cpus 1
-    memory 130.GB
-    queue "imaging"
 
     input:
     path(tif)
@@ -63,22 +57,12 @@ process slice {
 process cellpose_cell_segmentation_batch {
     debug true
 
-    label "cellpose"
-
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         params.sif_container:
         params.docker_container}"
-    containerOptions "${workflow.containerEngine == 'singularity' ? '--nv':'--gpus all'}"
+    containerOptions "${workflow.containerEngine == 'singularity' ? '--nv -B /scratch,/mnt':'--gpus all -v /scratch,/mnt'}"
     /*publishDir params.out_dir, mode:"copy"*/
     storeDir params.out_dir + "/sparse_segs"
-
-    queue "gpu-normal"
-    /*queue "gpu-basement"*/
-    clusterOptions = {" -gpu \"mode=shared:j_exclusive=no:gmem=12000:num=1\""}
-    cpus 10
-    memory 64.GB
-
-    maxForks params.max_fork
 
     input:
     tuple val(stem), path(tiles)
@@ -89,7 +73,7 @@ process cellpose_cell_segmentation_batch {
 
     script:
     """
-    export CELLPOSE_LOCAL_MODELS_PATH=/lustre/scratch126/cellgen/team283/NXF_WORK/cellpose_models
+    export CELLPOSE_LOCAL_MODELS_PATH=/scratch/image_ST_2023/data/segmentation/cellpose_models
     python -m cellpose --dir ./${tiles} --use_gpu --diameter ${cell_size} --flow_threshold 0 --chan 0 --pretrained_model cyto2 --save_tif --no_npy
     mkdir "${stem}_label_splits_cell_size_${cell_size}"
     mv ${tiles}/*cp_masks.tif "${stem}_label_splits_cell_size_${cell_size}"
@@ -103,7 +87,7 @@ process cellpose_cell_segmentation {
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         params.sif_container:
         params.docker_container}"
-    containerOptions "${workflow.containerEngine == 'singularity' ? '--nv':'--gpus all'}"
+    containerOptions "${workflow.containerEngine == 'singularity' ? '--nv -B /scratch,/mnt':'--gpus all -v /scratch,/mnt'}"
     /*publishDir params.out_dir, mode:"copy"*/
     storeDir params.out_dir + "/cellpose_seg"
 
@@ -135,20 +119,10 @@ process cellpose_cell_segmentation {
 process stitch {
     debug true
 
-    label "default"
-
-    cpus 1
-    /*label 'huge_mem'*/
-    memory { 330.GB * task.attempt }
-    /*time { 1.hour * task.attempt }*/
-
-    errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }
-    maxRetries 3
-
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         params.sif_container:
         params.docker_container}"
-    /*containerOptions "${workflow.containerEngine == 'singularity' ? '--nv':'--gpus all'}"*/
+    containerOptions "${workflow.containerEngine == 'singularity' ? '--nv -B /scratch,/mnt':'--gpus all -v /scratch,/mnt'}"
     /*publishDir params.out_dir + "/stitched_seg", mode:"copy"*/
     storeDir params.out_dir + "/stitched_seg"
 
@@ -347,21 +321,15 @@ process find_tissue_border {
 process expand_label_image {
     debug true
 
-    label "default"
-    cpus 1
-    memory 280.GB
-    queue "imaging"
-
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         params.sif_container:
         params.docker_container}"
-    containerOptions "${workflow.containerEngine == 'singularity' ? '--nv':'--gpus all'}"
+    containerOptions "${workflow.containerEngine == 'singularity' ? '--nv -B /scratch,/mnt':'--gpus all -v /scratch,/mnt'}"
     /*publishDir params.out_dir + "/expanded_label", mode:"copy"*/
     storeDir params.out_dir + "/expanded_label"
 
     input:
     tuple val(stem), path(nuc_label), val(cell_size), val(distance)
-
 
     output:
     tuple val(stem), path("${stem}_${cell_size}_label_expanded_by_${distance}.tif"), emit: tif
