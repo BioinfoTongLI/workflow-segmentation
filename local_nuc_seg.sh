@@ -6,7 +6,7 @@
 # Distributed under terms of the BSD-3 license.
 #
 
-MOUNT_POINT='/tmp/work/'
+MOUNT_POINT='./work/'
 
 TMP_NF_WORK="$MOUNT_POINT/${USER}_segmentation_work"
 
