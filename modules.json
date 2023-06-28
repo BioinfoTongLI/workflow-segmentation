@@ -1,0 +1,19 @@
+{
+    "name": "",
+    "homePage": "",
+    "repos": {
+        "git@github.com:BioinfoTongLI/modules.git": {
+            "modules": {
+                "sanger": {
+                    "bioinfotongli/bioformats2raw": {
+                        "branch": "develop",
+                        "git_sha": "876d94bce6abe87c840a1b0529a5d0920a09ab0a",
+                        "installed_by": [
+                            "modules"
+                        ]
+                    }
+                }
+            }
+        }
+    }
+}
