@@ -7,11 +7,8 @@
 # Distributed under terms of the BSD-3 license.
 import fire
 import tifffile as tf
-import numpy as np
 from aicsimageio import AICSImage
-from tifffile import imwrite
 from cellpose import models, core
-import sys
 
 
 def cellpose_seg_3d(chunk, model, diam=30, chs=[2, 1]):
@@ -30,7 +27,6 @@ def segment(stem:str, img_p:str, chs=[0, 0], s=0):
     with tf.TiffWriter(f"{stem}_serie_{s}_chs_{chs_str}_3d_label_array.tif",
                        append=True, bigtiff=True) as tif:
         for t in range(img.dims.T):
-            # print(t)
             seg = cellpose_seg_3d(
                     img.get_image_dask_data("ZYX", T=t, C=1).compute(),
                     model, chs=chs)
@@ -40,5 +36,5 @@ def segment(stem:str, img_p:str, chs=[0, 0], s=0):
 if __name__ == "__main__":
     use_GPU = core.use_gpu()
     print('>>> GPU activated? %d'%use_GPU)
-    model = models.Cellpose(gpu=True, model_type='cyto2')
+    model = models.Cellpose(gpu=use_GPU, model_type='cyto2')
     fire.Fire(segment)
