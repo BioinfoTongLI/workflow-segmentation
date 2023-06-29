@@ -16,8 +16,8 @@ process cellpose_3d_seg {
     label 'gpu_normal'
 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        params.sif_container:
-        "workflow-segmentation:latest"}"
+        "bioinfotongli/workflow-segmentation:latest":
+        "bioinfotongli/workflow-segmentation:latest"}"
     containerOptions "${workflow.containerEngine == 'singularity' ? '--nv -B /lustre/scratch126/cellgen/team283/NXF_WORK/cellpose_models:/tmp/cellpose_models':'--gpus all -v /lustre/scratch126/cellgen/team283/NXF_WORK/cellpose_models:/tmp/cellpose_models'}"
     /*publishDir params.out_dir, mode: 'copy'*/
     storeDir params.out_dir + "/segmentations/"
@@ -47,8 +47,8 @@ process feature_extraction {
     label 'gpu_normal'
 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        params.sif_container:
-        "workflow-segmentation:latest"}"
+        "bioinfotongli/workflow-segmentation:latest":
+        "bioinfotongli/workflow-segmentation:latest"}"
     containerOptions "${workflow.containerEngine == 'singularity' ? '--nv':'--gpus all'}"
     /*publishDir params.out_dir, mode: 'copy'*/
     storeDir params.out_dir + "/features/"
