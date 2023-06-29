@@ -4,17 +4,11 @@
 nextflow.enable.dsl=2
 
 params.to_seg = [
-    [0, "/lustre/scratch126/cellgen/team283/tl10/Freddy_3D_seg/T265C NTG1/WellA1_ChannelSD Red FW,SD Green FW_Seq0002.nd2", "0,0", 0],
-    [1, "/lustre/scratch126/cellgen/team283/tl10/Freddy_3D_seg/T265C NTG1/WellA1_ChannelSD Red FW,SD Green FW_Seq0002.nd2", "0,0", 1],
-    [2, "/lustre/scratch126/cellgen/team283/tl10/Freddy_3D_seg/T265C NTG1/WellA1_ChannelSD Red FW,SD Green FW_Seq0002.nd2", "0,0", 2],
-    [3, "/lustre/scratch126/cellgen/team283/tl10/Freddy_3D_seg/T265C NTG1/WellB1_ChannelSD Red FW,SD Green FW_Seq0003.nd2", "0,0", 0],
-    [4, "/lustre/scratch126/cellgen/team283/tl10/Freddy_3D_seg/T265C NTG1/WellB1_ChannelSD Red FW,SD Green FW_Seq0003.nd2", "0,0", 1],
-    [5, "/lustre/scratch126/cellgen/team283/tl10/Freddy_3D_seg/T265C NTG1/WellB1_ChannelSD Red FW,SD Green FW_Seq0003.nd2", "0,0", 3],
-    [6, "/lustre/scratch126/cellgen/team283/tl10/Freddy_3D_seg/T265C NTG1/WellB1_ChannelSD Red FW,SD Green FW_Seq0003.nd2", "0,0", 4],
-    [7, "/lustre/scratch126/cellgen/team283/tl10/Freddy_3D_seg/T265C NTG1/WellB1_ChannelSD Red FW,SD Green FW_Seq0003.nd2", "0,0", 5],
+    [0, '[img-path]', "[channels-to-seg, _e.g._0,0", '[serie_integer]'],
 ]
-params.out_dir = "/lustre/scratch126/cellgen/team283/tl10/Freddy_3D_seg/segmentations/"
+params.out_dir = null
 params.sif_container = "/lustre/scratch126/cellgen/team283/imaging_sifs/workflow-segmentation.sif"
+
 
 process cellpose_3d_seg {
     debug true
@@ -24,9 +18,9 @@ process cellpose_3d_seg {
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         params.sif_container:
         "workflow-segmentation:latest"}"
-    containerOptions "${workflow.containerEngine == 'singularity' ? '--nv -B /lustre/scratch126/cellgen/team283/NXF_WORK/cellpose_models:/lustre/scratch126/cellgen/team283/NXF_WORK/cellpose_models':'--gpus all -v /lustre/scratch126/cellgen/team283/NXF_WORK/cellpose_models:/lustre/scratch126/cellgen/team283/NXF_WORK/cellpose_models'}"
+    containerOptions "${workflow.containerEngine == 'singularity' ? '--nv -B /lustre/scratch126/cellgen/team283/NXF_WORK/cellpose_models:/tmp/cellpose_models':'--gpus all -v /lustre/scratch126/cellgen/team283/NXF_WORK/cellpose_models:/tmp/cellpose_models'}"
     /*publishDir params.out_dir, mode: 'copy'*/
-    storeDir params.out_dir + "segmentations/"
+    storeDir params.out_dir + "/segmentations/"
 
     input:
     tuple val(id), path(img), val(chs), val(serie)
@@ -41,7 +35,7 @@ process cellpose_3d_seg {
     meta['serie'] = serie
     meta["channel"] = chs
     """
-    export CELLPOSE_LOCAL_MODELS_PATH=/lustre/scratch126/cellgen/team283/NXF_WORK/cellpose_models
+    export CELLPOSE_LOCAL_MODELS_PATH=/tmp/cellpose_models
     cellpose_3d_seg.py --stem "${meta['stem']}" --img_p ${img} --chs ${chs} --s ${serie}
     """
 }
@@ -57,7 +51,7 @@ process feature_extraction {
         "workflow-segmentation:latest"}"
     containerOptions "${workflow.containerEngine == 'singularity' ? '--nv':'--gpus all'}"
     /*publishDir params.out_dir, mode: 'copy'*/
-    storeDir params.out_dir + "features/"
+    storeDir params.out_dir + "/features/"
 
     input:
     tuple val(id), path(raw), val(meta), path(img)
@@ -70,7 +64,11 @@ process feature_extraction {
     stem = meta['stem']
     serie = meta['serie']
     """
-    roi_feature_extract.py --stem "${stem}" --label_p ${img} --raw_p ${raw} --s ${serie}
+    roi_feature_extract.py \
+        --stem "${stem}" \
+        --label_p ${img} \
+        --raw_p ${raw} \
+        --s ${serie}
     """
 }
 
@@ -99,7 +97,10 @@ process track {
     stem = meta['stem']
     serie = meta['serie']
     """
-    track_with_trackpy.py --stem "${stem}_serie_${serie}" --centroids_p ${centroids} --cell_volumn_threshold ${thre}
+    track_with_trackpy.py \
+        --stem "${stem}_serie_${serie}" \
+        --centroids_p ${centroids} \
+        --cell_volumn_threshold ${thre}
     """
 }
 
