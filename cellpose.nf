@@ -73,7 +73,7 @@ process feature_extraction {
 }
 
 
-process track {
+process TRACKPY_TRACKING {
     debug true
 
     label 'cpu_only'
@@ -87,7 +87,6 @@ process track {
 
     input:
     tuple val(meta), path(centroids)
-    val(thre)
 
     output:
     path("${stem}_serie_${serie}_*.png"), emit: plots
@@ -96,11 +95,12 @@ process track {
     script:
     stem = meta['stem']
     serie = meta['serie']
+    def args = task.ext.args ?: ''
     """
     track_with_trackpy.py \
+        $args
         --stem "${stem}_serie_${serie}" \
-        --centroids_p ${centroids} \
-        --cell_volumn_threshold ${thre}
+        --centroids_p ${centroids}
     """
 }
 
@@ -115,5 +115,5 @@ workflow {
         .map { [it[0], it[1]]}
         .join(cellpose_3d_seg.out)
     )
-    track(feature_extraction.out.centroids, 15000)
+    TRACKPY_TRACKING(feature_extraction.out.centroids)
 }
