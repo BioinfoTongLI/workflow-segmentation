@@ -98,9 +98,9 @@ process TRACKPY_TRACKING {
     def args = task.ext.args ?: ''
     """
     track_with_trackpy.py \
-        $args
         --stem "${stem}_serie_${serie}" \
-        --centroids_p ${centroids}
+        --centroids_p ${centroids} \
+        $args
     """
 }
 
