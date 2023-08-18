@@ -4,7 +4,7 @@
 nextflow.enable.dsl=2
 
 params.csv = "[path-to-template.csv]"
-params.object_diameter = [70]
+params.object_diameter = []
 params.target_ch_indexes = "[1,2,3,4]" //"[4,0]"
 params.out_dir = "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_segmentation/"
 params.tilesize = 13000 // for tiled cell segmentation

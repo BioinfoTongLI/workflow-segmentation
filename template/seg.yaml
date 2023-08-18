@@ -1,3 +1,4 @@
 csv : ./seg.csv
 out_dir : ./
 expand_in_pixel : [10, 15]
+object_diameter : [60]
