@@ -37,7 +37,7 @@ process cellpose_3d_seg {
     """
     export CELLPOSE_LOCAL_MODELS_PATH=/tmp/cellpose_models
     cellpose_3d_seg.py --stem "${meta['stem']}" --img_p ${img} --chs ${chs} --s ${serie} --diameter ${diameter} \
-        cellprob_threshold ${cellprob_threshold}
+        --cellprob_threshold ${cellprob_threshold}
     """
 }
 
