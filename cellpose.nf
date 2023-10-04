@@ -4,7 +4,7 @@
 nextflow.enable.dsl=2
 
 params.to_seg = [
-    [0, '[img-path]', "[channels-to-seg, _e.g._0,0", '[serie_integer]', 20],
+    [0, '[img-path]', "[channels-to-seg, _e.g._0,0", '[serie_integer]', 20, 0.0],
 ]
 params.out_dir = null
 params.sif_container = "/lustre/scratch126/cellgen/team283/imaging_sifs/workflow-segmentation.sif"
@@ -23,7 +23,7 @@ process cellpose_3d_seg {
     storeDir params.out_dir + "/segmentations/"
 
     input:
-    tuple val(id), path(img), val(chs), val(serie), val(diameter)
+    tuple val(id), path(img), val(chs), val(serie), val(diameter), val(cellprob_threshold)
 
     output:
     tuple val(id), val(meta), path("${meta['stem']}_serie_${serie}_chs_${chs}_3d_label_array.tif"), emit: segmentation
@@ -36,7 +36,8 @@ process cellpose_3d_seg {
     meta["channel"] = chs
     """
     export CELLPOSE_LOCAL_MODELS_PATH=/tmp/cellpose_models
-    cellpose_3d_seg.py --stem "${meta['stem']}" --img_p ${img} --chs ${chs} --s ${serie} --diameter ${diameter}
+    cellpose_3d_seg.py --stem "${meta['stem']}" --img_p ${img} --chs ${chs} --s ${serie} --diameter ${diameter} \
+        cellprob_threshold ${cellprob_threshold}
     """
 }
 
