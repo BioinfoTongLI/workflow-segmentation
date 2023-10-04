@@ -18,7 +18,7 @@ def cellpose_seg_3d(chunk, model, diam=30, chs=[2, 1]):
 
 
 # segment cells with canonical cellpose API
-def segment(stem:str, img_p:str, chs=[0, 0], s=0):
+def segment(stem:str, img_p:str, chs=[0, 0], s=0, diameter=30):
     chs_str=",".join([str(chs[0]), str(chs[1])])
     img = AICSImage(img_p)
     img.set_scene(s)
@@ -29,7 +29,7 @@ def segment(stem:str, img_p:str, chs=[0, 0], s=0):
         for t in range(img.dims.T):
             seg = cellpose_seg_3d(
                     img.get_image_dask_data("ZYX", T=t, C=1).compute(),
-                    model, chs=chs)
+                    model, chs=chs, diam=diameter)
             tif.write(seg)
 
 
