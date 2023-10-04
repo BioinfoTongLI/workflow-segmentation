@@ -105,7 +105,7 @@ process TRACKPY_TRACKING {
 }
 
 
-workflow {
+workflow 3d_segmentation {
     cellpose_3d_seg(channel.from(params.to_seg))
     Channel.from(params.to_seg)
         .map { [it[0], it[1]] }
@@ -115,5 +115,10 @@ workflow {
         .map { [it[0], it[1]]}
         .join(cellpose_3d_seg.out)
     )
-    TRACKPY_TRACKING(feature_extraction.out.centroids)
+    emit: feature_extraction.out.centroids
+}
+
+workflow 3d_tracking {
+    3d_segmentation()
+    TRACKPY_TRACKING(3d_segmentation.out)
 }
