@@ -31,12 +31,15 @@ def segment(stem:str, img_p:str, chs=[0, 0], s=0,
                        append=True, bigtiff=True) as tif:
 
         T_max = img.dims.T if T_max == -1 else T_max
+        print(img.shape)
 
         for t in range(T_min, T_max):
             seg = cellpose_seg_3d(
-                    img.get_image_dask_data("ZYX", T=t, C=C,
-                                            Z=np.arange(Z_min, Z_max)).compute(),
-                    model, chs=chs, diam=diameter, cellprob_threshold=cellprob_threshold)
+                    img.get_image_dask_data(
+                        "ZYX", T=t, C=C, Z=np.arange(Z_min, Z_max)
+                    ).compute(),
+                    model, chs=chs, diam=diameter,
+                    cellprob_threshold=cellprob_threshold)
             tif.write(seg)
 
 
