@@ -26,7 +26,7 @@ process cellpose_3d_seg {
     tuple val(id), path(img), val(chs), val(serie), val(diameter)
 
     output:
-    tuple val(id), val(meta), path("${meta['stem']}_serie_${serie}_chs_${chs}_3d_label_array.tif"), emit: segmentation
+    tuple val(id), val(meta), path("${meta['stem']}_serie_${serie}_chs_${chs}_C_*_3d_label_array.tif"), emit: segmentation
 
     script:
     meta = [:]

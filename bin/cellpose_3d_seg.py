@@ -22,15 +22,15 @@ def cellpose_seg_3d(chunk, model, diam=30, cellprob_threshold=0.0, chs=[2, 1]):
 # segment cells with canonical cellpose API
 def segment(stem:str, img_p:str, chs=[0, 0], s=0,
             diameter=30, cellprob_threshold=0.0, C=0,
-            Z_min=0, Z_max=1, T_min=0, T_max=None):
+            Z_min=0, Z_max=1, T_min=0, T_max=-1):
     chs_str=",".join([str(chs[0]), str(chs[1])])
     img = AICSImage(img_p)
     img.set_scene(s)
 
     with tf.TiffWriter(f"{stem}_serie_{s}_chs_{chs_str}_C_{C}_3d_label_array.tif",
                        append=True, bigtiff=True) as tif:
-        if np.isnan(T_max):
-            T_max = img.dims.T
+
+        T_max = img.dims.T if T_max == -1 else T_max
 
         for t in range(T_min, T_max):
             seg = cellpose_seg_3d(
