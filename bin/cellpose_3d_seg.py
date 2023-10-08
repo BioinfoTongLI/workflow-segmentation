@@ -8,6 +8,7 @@
 import fire
 import tifffile as tf
 from aicsimageio import AICSImage
+from skimage import exposure
 from cellpose import models, core
 import numpy as np
 
