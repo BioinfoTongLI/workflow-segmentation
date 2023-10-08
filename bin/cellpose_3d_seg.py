@@ -63,7 +63,7 @@ def segment(stem:str, img_p:str, chs=[0, 0], s=0,
             stack = img.get_image_dask_data(
                 "ZYX", T=t, C=C, Z=np.arange(Z_min, Z_max)
             )
-            if normalize:
+            if bool(normalize):
                 stack = normalize_image_stack_slice_by_slice(stack)
             seg = cellpose_seg_3d(
                     stack.compute(),
