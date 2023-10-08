@@ -9,6 +9,7 @@ import fire
 import tifffile as tf
 from aicsimageio import AICSImage
 from cellpose import models, core
+import numpy as np
 
 
 def cellpose_seg_3d(chunk, model, diam=30, cellprob_threshold=0.0, chs=[2, 1]):
@@ -19,17 +20,22 @@ def cellpose_seg_3d(chunk, model, diam=30, cellprob_threshold=0.0, chs=[2, 1]):
 
 
 # segment cells with canonical cellpose API
-def segment(stem:str, img_p:str, chs=[0, 0], s=0, diameter=30, cellprob_threshold=0.0, C=0):
+def segment(stem:str, img_p:str, chs=[0, 0], s=0,
+            diameter=30, cellprob_threshold=0.0, C=0,
+            Z_min=0, Z_max=1, T_min=0, T_max=None):
     chs_str=",".join([str(chs[0]), str(chs[1])])
     img = AICSImage(img_p)
     img.set_scene(s)
-    # print(img.shape)
 
-    with tf.TiffWriter(f"{stem}_serie_{s}_chs_{chs_str}_3d_label_array.tif",
+    with tf.TiffWriter(f"{stem}_serie_{s}_chs_{chs_str}_C_{C}_3d_label_array.tif",
                        append=True, bigtiff=True) as tif:
-        for t in range(img.dims.T):
+        if np.isnan(T_max):
+            T_max = img.dims.T
+
+        for t in range(T_min, T_max):
             seg = cellpose_seg_3d(
-                    img.get_image_dask_data("ZYX", T=t, C=C).compute(),
+                    img.get_image_dask_data("ZYX", T=t, C=C,
+                                            Z=np.arange(Z_min, Z_max)).compute(),
                     model, chs=chs, diam=diameter, cellprob_threshold=cellprob_threshold)
             tif.write(seg)
 
