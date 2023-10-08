@@ -23,7 +23,7 @@ process cellpose_3d_seg {
     storeDir params.out_dir + "/segmentations/"
 
     input:
-    tuple val(id), path(img), val(chs), val(serie), val(diameter), val(cellprob_threshold)
+    tuple val(id), path(img), val(chs), val(serie), val(diameter)
 
     output:
     tuple val(id), val(meta), path("${meta['stem']}_serie_${serie}_chs_${chs}_3d_label_array.tif"), emit: segmentation
@@ -34,10 +34,12 @@ process cellpose_3d_seg {
     meta['stem'] = img.baseName
     meta['serie'] = serie
     meta["channel"] = chs
+    def args = task.ext.args ?: ''
     """
     export CELLPOSE_LOCAL_MODELS_PATH=/tmp/cellpose_models
-    cellpose_3d_seg.py --stem "${meta['stem']}" --img_p ${img} --chs ${chs} --s ${serie} --diameter ${diameter} \
-        --cellprob_threshold ${cellprob_threshold}
+    cellpose_3d_seg.py --stem "${meta['stem']}" --img_p ${img} \
+        --chs ${chs} --s ${serie} --diameter ${diameter} \
+        $args
     """
 }
 
