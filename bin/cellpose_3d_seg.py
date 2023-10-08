@@ -39,8 +39,7 @@ def normalize_image_stack_slice_by_slice(stack):
         mean = np.mean(img)
         std = np.std(img)
         img = (img - mean) / std
-        p1, p2 = np.percentile(img, (0, 100))
-        p1, p2 = tuple([p1, p2])
+        p1, p2 = np.percentile(img.ravel(), (0, 100))
         stack[i, :, :] = exposure.rescale_intensity(img, in_range=(p1, p2), out_range=(0, 255))
     return stack
 
