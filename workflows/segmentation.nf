@@ -5,7 +5,6 @@ nextflow.enable.dsl=2
 
 params.csv = "[path-to-template.csv]"
 params.object_diameter = []
-params.target_ch_indexes = "[1,2,3,4]" //"[4,0]"
 params.out_dir = "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_segmentation/"
 params.tilesize = 13000 // for tiled cell segmentation
 params.target_cellpose_ch_ind = 1 //target channel to perform cell segmentation on
@@ -25,6 +24,8 @@ include { BIOINFOTONGLI_BIOFORMATS2RAW } from '../modules/sanger/bioinfotongli/b
     store:true,
     out_dir:params.out_dir
 )
+
+include { extract_tif } from './channel_extraction'
 
 
 process slice {
@@ -137,33 +138,6 @@ process stitch {
     cp slicer_info.json  ${tiles}
     stitcher_runner.py -i ${tiles} -o ./ --no_cell
     mv z001_mask.ome.tiff "${out_tif}"
-    """
-}
-
-
-process export_chs_from_zarr {
-    debug true
-
-    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        params.sif_container:
-        params.docker_container}"
-    containerOptions "${workflow.containerEngine == 'singularity' ? '--nv':'--gpus all'}"
-    /*publishDir params.out_dir + "/extracted_chs", mode:"copy"*/
-    storeDir params.out_dir + "/extracted_chs"
-    /*errorStrategy "ignore"*/
-
-    input:
-    tuple val(meta), path(zarr_in)
-    val(target_ch_indexes)
-
-    output:
-    tuple val(stem), path("${stem}_target_chs.tif"), emit: tif
-    /*tuple val(stem), path("${stem}_target_chs.npy"), emit: tif*/
-
-    script:
-    stem=meta["stem"]
-    """
-    zarr_handler.py to_tiff --stem "$stem" --zarr_in ${zarr_in}/0 --target_ch_indexes ${target_ch_indexes}
     """
 }
 
@@ -356,14 +330,6 @@ workflow {
     /*Get_complementary_nuc_labels(dapi_assisted_segmentation_improvement.out.join(nuc_seg_only.out))*/
 }
 
-workflow extract_tif {
-    take: img
-    main:
-        BIOINFOTONGLI_BIOFORMATS2RAW(img)
-        export_chs_from_zarr(BIOINFOTONGLI_BIOFORMATS2RAW.out.zarr, params.target_ch_indexes)
-    emit: export_chs_from_zarr.out.tif
-}
-
 workflow nuc_seg_only {
     take: img
     main:
@@ -388,15 +354,6 @@ workflow run_cell_classification {
     nuc_seg_only(input_files.images)
     extract_tif(input_files.images_for_bf2raw)
     ilastik_cell_filtering(extract_tif.out.join(nuc_seg_only.out), params.cyto_pixel_classifier)
-}
-
-workflow run_extract_chs_from_zarr {
-    params.target_ch_indexes = Channel.from([[0,1]])
-    params.zarr_to_extract = [[["stem":"CM007"], file("/nfs/team283_imaging/RV_RPT/playground_Tong/CM007/registration/ome_zarr/CM007_optflow_seg_optflow_reg_result_stack.zarr/")]]
-    export_chs_from_zarr(
-        Channel.from(params.zarr_to_extract),
-        params.target_ch_indexes
-    )
 }
 
 workflow small_image_cellpose {
