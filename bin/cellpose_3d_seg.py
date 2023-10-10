@@ -39,8 +39,10 @@ def normalize_image_stack_slice_by_slice(stack):
         mean = np.mean(img)
         std = np.std(img)
         img = (img - mean) / std
-        p1, p2 = np.percentile(img.ravel(), (0, 100))
-        stack[i, :, :] = exposure.rescale_intensity(img, in_range=(p1, p2), out_range=(0, 255))
+        img_norm = (img - np.min(img)) / (np.max(img) - np.min(img))
+
+        # Rescale the dynamic range to 0 to 255
+        stack[i, :, :] = (img_norm * 255).astype(np.uint8)
     return stack
 
 
@@ -57,7 +59,6 @@ def segment(stem:str, img_p:str, chs=[0, 0], s=0,
 
         T_max = img.dims.T if T_max == -1 else T_max
         Z_max = img.dims.Z if Z_max == -1 else Z_max
-        print(img.shape)
 
         for t in range(T_min, T_max):
             stack = img.get_image_dask_data(
