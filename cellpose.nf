@@ -4,7 +4,7 @@
 nextflow.enable.dsl=2
 
 params.to_seg = [
-    [0, '[img-path]', "[channels-to-seg, _e.g._0,0", '[serie_integer]', 20, 0.0],
+    [0, '[img-path]', "[channels-to-seg, _e.g._0,0", '[serie_integer]', 20],
 ]
 params.out_dir = null
 params.sif_container = "/lustre/scratch126/cellgen/team283/imaging_sifs/workflow-segmentation.sif"
@@ -19,7 +19,6 @@ process cellpose_3d_seg {
         "bioinfotongli/workflow-segmentation:latest":
         "bioinfotongli/workflow-segmentation:latest"}"
     containerOptions "${workflow.containerEngine == 'singularity' ? '--nv -B /lustre/scratch126/cellgen/team283/NXF_WORK/cellpose_models:/tmp/cellpose_models -B /nfs:/nfs':'--gpus all -v /lustre/scratch126/cellgen/team283/NXF_WORK/cellpose_models:/tmp/cellpose_models'}"
-    /*publishDir params.out_dir, mode: 'copy'*/
     storeDir params.out_dir + "/segmentations/"
 
     input:
@@ -38,7 +37,7 @@ process cellpose_3d_seg {
     """
     export CELLPOSE_LOCAL_MODELS_PATH=/tmp/cellpose_models
     cellpose_3d_seg.py --stem "${meta['stem']}" --img_p ${img} \
-        --chs ${chs} --s ${serie} --diameter ${diameter} \
+        --channels ${chs} --s ${serie} --diameter ${diameter} \
         $args
     """
 }
