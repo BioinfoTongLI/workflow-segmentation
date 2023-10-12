@@ -13,13 +13,6 @@ from cellpose import models, core
 import numpy as np
 
 
-def cellpose_seg_3d(chunk, model, diam=30, cellprob_threshold=0.0, chs=[2, 1]):
-    masks, flows, styles, diams = model.eval(
-            chunk, diameter=diam, channels=chs,
-            do_3D=True, cellprob_threshold=cellprob_threshold)
-    return masks
-
-
 def normalize_image_stack_slice_by_slice(stack):
     """
     Normalize a 3D image stack slice by slice using NumPy.
@@ -47,10 +40,11 @@ def normalize_image_stack_slice_by_slice(stack):
 
 
 # segment cells with canonical cellpose API
-def segment(stem:str, img_p:str, chs=[0, 0], s=0,
-            diameter=30, cellprob_threshold=0.0, C=0,
-            Z_min=0, Z_max=-1, T_min=0, T_max=-1, normalize=False):
-    chs_str=",".join([str(chs[0]), str(chs[1])])
+def segment(stem:str, img_p:str, s=0, C=0,
+            Z_min=0, Z_max=-1, T_min=0, T_max=-1,
+            normalize=False, **cellposeparams):
+    chs_str=",".join([str(cellposeparams["channels"][0]),
+                      str(cellposeparams["channels"][1])])
     img = AICSImage(img_p)
     img.set_scene(s)
 
@@ -66,11 +60,12 @@ def segment(stem:str, img_p:str, chs=[0, 0], s=0,
             )
             if bool(normalize):
                 stack = normalize_image_stack_slice_by_slice(stack)
-            seg = cellpose_seg_3d(
-                    stack.compute(),
-                    model, chs=chs, diam=diameter,
-                    cellprob_threshold=cellprob_threshold)
-            tif.write(seg)
+            print(f"Processing serie {s}, channel {chs_str}, time {t}, with shape {stack.shape}")
+
+            segs, flows, styles, diams = model.eval(
+                stack.compute(),
+                **cellposeparams)
+            tif.write(segs)
 
 
 if __name__ == "__main__":
