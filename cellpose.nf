@@ -43,7 +43,7 @@ process cellpose_3d_seg {
 }
 
 
-process feature_extraction {
+process feature_extraction_3D {
     debug true
 
     label 'gpu_normal'
@@ -60,17 +60,53 @@ process feature_extraction {
 
     output:
     tuple val(meta), path("${stem}_serie_${serie}_features.csv"), emit: centroids
-    tuple val(meta), path("${stem}_serie_${serie}_raw_crops"), emit: raw_crops
+    tuple val(meta), path("${stem}_serie_${serie}_raw_crops"), emit: raw_crops, optional: true
 
     script:
     stem = meta['stem']
     serie = meta['serie']
+    def args = task.ext.args ?: ''
     """
-    roi_feature_extract.py \
+    roi_feature_extract.py extract \
         --stem "${stem}" \
         --label_p ${img} \
         --raw_p ${raw} \
-        --s ${serie}
+        --s ${serie} \
+        $args
+    """
+}
+
+
+process feature_extraction_2D {
+    debug true
+
+    maxForks 1
+
+    label 'gpu_normal'
+
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        "bioinfotongli/workflow-segmentation:latest":
+        "bioinfotongli/workflow-segmentation:latest"}"
+    containerOptions "${workflow.containerEngine == 'singularity' ? '--nv':'--gpus all'}"
+    storeDir params.out_dir + "/features/"
+
+    input:
+    tuple val(id), val(meta), path(img)
+
+    output:
+    tuple val(meta), path("${stem}_serie_${serie}_features.csv"), emit: centroids
+    tuple val(meta), path("${stem}_serie_${serie}_raw_crops"), emit: raw_crops, optional: true
+
+    script:
+    stem = meta['stem']
+    serie = meta['serie']
+    def args = task.ext.args ?: ''
+    """
+    roi_feature_extract.py extract_2d \
+        --stem "${stem}" \
+        --label_p ${img} \
+        --s ${serie} \
+        $args
     """
 }
 
@@ -123,4 +159,10 @@ workflow Segmentation_3D {
 workflow Tracking {
     Segmentation_3D()
     TRACKPY_TRACKING(Segmentation_3D.out)
+}
+
+workflow Feature_extraction_2D{
+    feature_extraction_2D(
+        Channel.from(params.to_quantify)
+    )
 }
