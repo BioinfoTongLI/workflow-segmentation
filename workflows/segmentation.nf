@@ -3,7 +3,7 @@
 
 nextflow.enable.dsl=2
 
-params.csv = "[path-to-template.csv]"
+params.images = ['image1', 'image2']
 params.object_diameter = []
 params.out_dir = "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_segmentation/"
 params.tilesize = 13000 // for tiled cell segmentation
@@ -14,8 +14,8 @@ params.cyto_pixel_classifier = "[path-to-ilastik-cytoplasm-classifier]"
 params.tissue_pixel_classifier = "[path-to-ilastik-tissue-classifier]"
 params.expand_in_pixel = [10]
 
-params.docker_container = "gitlab-registry.internal.sanger.ac.uk/tl10/workflow-segmentation:latest"
-params.sif_container = "/lustre/scratch126/cellgen/team283/imaging_sifs/workflow-segmentation.sif"
+params.docker_container = "bioinfotongli/workflow-segmentation:latest"
+params.sif_container = "bioinfotongli/workflow-segmentation:latest"
 params.ch_index = 0 // can only use 0 for now
 
 include { BIOINFOTONGLI_BIOFORMATS2RAW } from '../modules/sanger/bioinfotongli/bioformats2raw/main' addParams(
@@ -81,37 +81,38 @@ process cellpose_cell_segmentation_batch {
 }
 
 
-process cellpose_cell_segmentation {
+process cellpose_cell_expand {
     debug true
 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         params.sif_container:
         params.docker_container}"
-    containerOptions "${workflow.containerEngine == 'singularity' ? '--nv':'--gpus all'}"
-    /*publishDir params.out_dir, mode:"copy"*/
-    storeDir params.out_dir + "/cellpose_seg"
+    containerOptions "${workflow.containerEngine == 'singularity' ?
+        '--nv -B /lustre/scratch126/cellgen/team283/NXF_WORK/cellpose_models:/opt/cellpose_models':'--gpus all'}"
+    storeDir params.out_dir + "/cellpose_seg_with_expansion_and_regionprops"
 
-    queue "gpu-normal"
-    /*queue "gpu-basement"*/
-    clusterOptions = "-gpu 'num=1:gmem=2000'"
-    cpus 4
-    memory 24.GB
-
-    maxForks params.max_fork
+    cpus 1
 
     input:
-    tuple path(img), path(img_mask)
-    each cell_size
-    val target_ch_ind
+    tuple path(img), path(img_mask), path(metadata)
 
     output:
-    tuple val(stem), path("${stem}_label.tif"), val(cell_size), emit: labels
-    tuple val(stem), path("${stem}_cropped_raw.tif"), emit: raw
+    path(out_label_tif), emit: labels
+    path(out_label_csv), emit: regionprops
 
     script:
-    stem = img.baseName
+    def stem = img.baseName + "_2d_labels"
+    def args = task.ext.args ?: ''
+    out_label_tif = stem + ".tif"
+    out_label_csv = stem + ".csv"
     """
-    small_image_cell_expand.py --diam ${cell_size} --chan_ind ${target_ch_ind} --pretrained_model cyto2 --image_in ${img} --image_out "${stem}_cropped_raw.tif" --label_out "${stem}_label.tif" --mask_in ${img_mask}
+    export CELLPOSE_LOCAL_MODELS_PATH=/opt/cellpose_models
+    cellpose_expand.py \
+        --image ${img} \
+        --mask ${img_mask} \
+        --metadata ${metadata} \
+        --out_name "${out_label_tif}" \
+         ${args}
     """
 }
 
@@ -315,11 +316,10 @@ process expand_label_image {
 }
 
 
-input_files = Channel.fromPath(params.csv)
-    .splitCsv(header:true)
+input_files = Channel.fromPath(params.images)
     .multiMap{it ->
-        images_for_bf2raw: [[stem:file(it.filepath).baseName], file(it.filepath)]
-        images: file(it.filepath)
+        images_for_bf2raw: [[stem:file(it).baseName], file(it)]
+        images: file(it)
     }
 
 workflow {
@@ -357,36 +357,16 @@ workflow run_cell_classification {
 }
 
 workflow small_image_cellpose {
-     cellpose_cell_segmentation(
-        channel.from(
-            [
-                ["/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41334/23059_V1 Layer 2-3 - SBM 20230313 AB c93 R_25333_2842_28238_4827.tif", "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41334/23059_V1 Layer 2-3 - SBM 20230313 AB c93 R_25333_2842_28238_4827_mask.tif"],
-                ["/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41334/23047_V1 Layer 2-3 - SBM 20230313 AB c93 L preferred_7138_3825_10540_6114.tif", "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41334/23047_V1 Layer 2-3 - SBM 20230313 AB c93 L preferred_7138_3825_10540_6114_mask.tif"],
+    mask_images = channel.fromPath("/nfs/team283_imaging/SM_BRA/playground_Tong/Susanna_Jimmy_hiplex/omero_roi_downloads/*/*_mask.tif")
+    to_seg = mask_images.map{it ->
+        def stem = it.toString()
+        [file(stem.replace("_mask", ""), checkIfExists:true),
+        file(it),
+        file(stem.replace("_mask.tif", ".yaml"), checkIfExists:true)]
+    }
+     cellpose_cell_expand(to_seg)
+}
 
-                ["/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41336/23051_V1 Layer 2-3 - SBM 20230313 AB c95_26572_4050_30041_7879.tif", "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41336/23051_V1 Layer 2-3 - SBM 20230313 AB c95_26572_4050_30041_7879_mask.tif"],
-
-                ["/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41337/23048_V1 Layer 2-3 - SBM 20230313 AB c93 L preferred_25847_5990_29834_9032.tif", "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41337/23048_V1 Layer 2-3 - SBM 20230313 AB c93 L preferred_25847_5990_29834_9032_mask.tif"],
-                ["/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41337/23057_V1 Layer 2-3 - SBM 20230313 AB c94 R_7337_8261_10961_10829.tif", "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41337/23057_V1 Layer 2-3 - SBM 20230313 AB c94 R_7337_8261_10961_10829_mask.tif"],
-
-                ["/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41338/23050_V1 Layer 2-3 - SBM 20230313 AB c95_27704_7396_33083_10841.tif", "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41338/23050_V1 Layer 2-3 - SBM 20230313 AB c95_27704_7396_33083_10841_mask.tif"],
-
-                ["/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41339/23058_V1 Layer 2-3 - SBM 20230313 AB c94 L_5759_5067_8756_7901.tif", "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41339/23058_V1 Layer 2-3 - SBM 20230313 AB c94 L_5759_5067_8756_7901_mask.tif"],
-                ["/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41339/23044_V1 Layer 2-3 - SBM 20230313 Atlas-c95 R preferred_23659_1690_27520_4225.tif", "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41339/23044_V1 Layer 2-3 - SBM 20230313 Atlas-c95 R preferred_23659_1690_27520_4225_mask.tif"],
-
-                ["/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41341/23049_V1 Layer 2-3 - SBM 20230313 AB c95_6040_2723_10727_5814.tif", "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41341/23049_V1 Layer 2-3 - SBM 20230313 AB c95_6040_2723_10727_5814_mask.tif"],
-
-                ["/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41342/23046_V1 Layer 2-3 - SBM 20230313 AB c95 L_26417_6669_30209_10129.tif", "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41342/23046_V1 Layer 2-3 - SBM 20230313 AB c95 L_26417_6669_30209_10129_mask.tif"],
-                ["/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41342/23056_V1 Layer 2-3 - SBM 20230313 AB c95 R preferred_7381_8851_12262_11712.tif", "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41342/23056_V1 Layer 2-3 - SBM 20230313 AB c95 R preferred_7381_8851_12262_11712_mask.tif"],
-
-                ["/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41343/23054_V1 Layer 2-3 - SBM 20230313 AB c93_29989_7370_32465_10935.tif", "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41343/23054_V1 Layer 2-3 - SBM 20230313 AB c93_29989_7370_32465_10935_mask.tif"],
-
-                // misaligned slides below
-
-                ["/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41340/23052_V1 Layer 2-3 - SBM 20230313 AB c95 L preferred_22216_12544_26848_15215.tif", "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41340/23052_V1 Layer 2-3 - SBM 20230313 AB c95 L preferred_22216_12544_26848_15215_mask.tif"],
-                ["/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41340/23053_V1 Layer 2-3 - SBM 20230313 AB c95 R_4072_8190_7285_11772.tif", "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41340/23053_V1 Layer 2-3 - SBM 20230313 AB c95 R_4072_8190_7285_11772_mask.tif"],
-
-                ["/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41335/23055_V1 Layer 2-3 - SBM 20230313 AB c95_1875_6199_4692_10446.tif", "/nfs/team283_imaging/SM_BRA/playground_Tong/Suzzana_Jimmy_hiplex/omero_roi_downloads/41335/23055_V1 Layer 2-3 - SBM 20230313 AB c95_1875_6199_4692_10446_mask.tif"],
-            ]
-        ), 70, 0
-    )
+workflow Baysor {
+    run_baysor(input_files.images)
 }
