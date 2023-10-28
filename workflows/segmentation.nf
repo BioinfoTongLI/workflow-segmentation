@@ -316,6 +316,32 @@ process expand_label_image {
 }
 
 
+process Baysor {
+    debug true
+
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        'bioinfotongli/baysor:latest':
+        'bioinfotongli/baysor:latest'}"
+    containerOptions "${workflow.containerEngine == 'singularity' ? '--nv':'--gpus all'}"
+    storeDir params.out_dir + "/baysor_seg"
+
+    input:
+    tuple path(molecules), val(x_col), val(y_col), val(gene_col)
+
+    output:
+    path(out_label), emit: baysor_labels
+
+    script:
+    def stem = molecules.baseName + "_baysor_labels"
+    def args = task.ext.args ?: ''
+    out_label_tif = stem + ".tif"
+    """
+    baysor run ${molecules} \
+        ${args}
+    """
+}
+
+
 input_files = Channel.fromPath(params.images)
     .multiMap{it ->
         images_for_bf2raw: [[stem:file(it).baseName], file(it)]
@@ -367,6 +393,8 @@ workflow small_image_cellpose {
      cellpose_cell_expand(to_seg)
 }
 
-workflow Baysor {
-    run_baysor(input_files.images)
+workflow run_baysor {
+    Baysor(
+        ["/nfs/team283_imaging/HZ_HLB/playground_Tong/20230427_KR0105/decoding/filtered_decoded/lower_limb_optflow_reg_result_stack_detected_peaks_diam_5_percentile_90_sep_3_search_range_5_decoded_df_prob_thresholded_0.9.tsv", "x_int", "y_int", "Name"]
+    )
 }

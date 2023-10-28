@@ -3,7 +3,7 @@
 
 nextflow.enable.dsl=2
 
-include {run_nuc_seg; small_image_cellpose} from './workflows/segmentation'
+include {run_nuc_seg; small_image_cellpose; run_baysor} from './workflows/segmentation'
 
 workflow {
     run_nuc_seg()
@@ -12,4 +12,9 @@ workflow {
 
 workflow small {
     small_image_cellpose()
+}
+
+
+workflow baysor {
+    run_baysor()
 }
