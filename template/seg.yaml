@@ -1,4 +1,4 @@
-csv : ./seg.csv
+images : ['image1', 'image2']
 out_dir : ./
-expand_in_pixel : [10, 15]
+expand_in_pixel : [10]
 object_diameter : [60]
