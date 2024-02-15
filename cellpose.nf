@@ -153,7 +153,7 @@ workflow Segmentation_3D {
         .map { [it[0], it[1]]}
         .join(cellpose_3d_seg.out)
     )
-    emit: feature_extraction.out.centroids
+    emit: feature_extraction_3D.out.centroids
 }
 
 workflow Tracking {
