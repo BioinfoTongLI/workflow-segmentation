@@ -149,7 +149,7 @@ workflow Segmentation_3D {
         .map { [it[0], it[1]] }
         .join(cellpose_3d_seg.out).view()
         /*.map { [["id":file(it[0]).baseName], it[0]}*/
-    feature_extraction(Channel.from(params.to_seg)
+    feature_extraction_3D(Channel.from(params.to_seg)
         .map { [it[0], it[1]]}
         .join(cellpose_3d_seg.out)
     )
