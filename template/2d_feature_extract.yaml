@@ -1,0 +1,4 @@
+to_quantify:
+    - [0, {'stem':'Pilot_1', 'serie':0}, 'label_image_1.tif']
+    - [1, {'stem':'Pilot_2', 'serie':0}, 'label_image_2.tif']
+out_dir: ./output_2d_feature_extract
