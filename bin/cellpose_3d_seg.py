@@ -56,7 +56,7 @@ def segment(stem:str, img_p:str, s=0, C=0,
 
         for t in range(T_min, T_max):
             stack = img.get_image_dask_data(
-                "ZYX", T=t, C=C, Z=np.arange(Z_min, Z_max)
+                "ZCYX", T=t, C=cellposeparams["channels"][0], Z=np.arange(Z_min, Z_max)
             )
             if bool(normalize):
                 stack = normalize_image_stack_slice_by_slice(stack)
