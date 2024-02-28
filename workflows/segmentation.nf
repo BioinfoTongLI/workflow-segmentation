@@ -57,6 +57,8 @@ process slice {
 process cellpose_cell_segmentation_batch {
     debug true
 
+    label 'gpu'
+
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         params.sif_container:
         params.docker_container}"
