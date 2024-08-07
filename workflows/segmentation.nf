@@ -33,7 +33,7 @@ process slice {
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         params.sif_container:
         params.docker_container}"
-    containerOptions "${workflow.containerEngine == 'singularity' ? '--nv':'--gpus all'}"
+    // containerOptions "${workflow.containerEngine == 'singularity' ? '--nv':'--gpus all'}"
     /*publishDir params.out_dir, mode:"copy"*/
     storeDir params.out_dir + "/slices"
 
