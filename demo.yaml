@@ -1,0 +1,5 @@
+images : [IMAGE PATH]
+out_dir : ./
+object_diameter : [25]
+expand_in_pixel : [23] 
+tilesize : 10000
