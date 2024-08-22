@@ -33,9 +33,7 @@ process slice {
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         params.sif_container:
         params.docker_container}"
-    // containerOptions "${workflow.containerEngine == 'singularity' ? '--nv':'--gpus all'}"
-    /*publishDir params.out_dir, mode:"copy"*/
-    storeDir params.out_dir + "/slices"
+    publishDir params.out_dir + "/slices", mode:"copy"
 
     input:
     path(tif)
@@ -62,9 +60,7 @@ process cellpose_cell_segmentation_batch {
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         params.sif_container:
         params.docker_container}"
-    containerOptions "${workflow.containerEngine == 'singularity' ? '--nv -B /lustre/scratch126/cellgen/team283/NXF_WORK/cellpose_models:/lustre/scratch126/cellgen/team283/NXF_WORK/cellpose_models':'--gpus all'} "
-    /*publishDir params.out_dir, mode:"copy"*/
-    storeDir params.out_dir + "/sparse_segs"
+    publishDir params.out_dir + "/sparse_segs", mode:"copy"
 
     input:
     tuple val(stem), path(tiles)
@@ -125,9 +121,7 @@ process stitch {
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         params.sif_container:
         params.docker_container}"
-    /*containerOptions "${workflow.containerEngine == 'singularity' ? '--nv':'--gpus all'}"*/
-    /*publishDir params.out_dir + "/stitched_seg", mode:"copy"*/
-    storeDir params.out_dir + "/stitched_seg"
+    publishDir params.out_dir + "/stitched_seg", mode:"copy"
 
     input:
     tuple val(stem), path(tiles), val(cell_size), path(slicer_json)
@@ -300,9 +294,7 @@ process expand_label_image {
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         params.sif_container:
         params.docker_container}"
-    containerOptions "${workflow.containerEngine == 'singularity' ? '--nv':'--gpus all'}"
-    /*publishDir params.out_dir + "/expanded_label", mode:"copy"*/
-    storeDir params.out_dir + "/expanded_label"
+    publishDir params.out_dir + "/expanded_label", mode:"copy"
 
     input:
     tuple val(stem), path(nuc_label), val(cell_size), val(distance)
